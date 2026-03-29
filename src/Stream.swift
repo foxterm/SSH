@@ -8,7 +8,7 @@ import libssh2
 
 /// SSH 写入流实现，将本地数据写入远程 SSH 渠道或 SFTP 文件
 /// 继承自 OutputStream 以支持标准的 Swift IO 拷贝操作
-class SSHInputStream: OutputStream {
+class SSHOutputStream: OutputStream {
     private var handle: OpaquePointer?
     private var ssh: SSH
     private let stream: StreamType
@@ -42,7 +42,7 @@ class SSHInputStream: OutputStream {
 
 /// SSH 读取流实现，从远程服务器读取数据
 /// 继承自 InputStream，常用于下载文件或接收 Shell 输出
-class SSHOutputStream: InputStream {
+class SSHInputStream: InputStream {
     private var handle: OpaquePointer?
     private var ssh: SSH
     private let stream: StreamType
@@ -75,7 +75,7 @@ class SSHOutputStream: InputStream {
 
 /// 专为 SCP 协议优化的输出流
 /// 处理 SCP 传输中特有的文件大小边界与同步逻辑
-class SCPOutputStream: InputStream {
+class SCPInputStream: InputStream {
     private var handle: OpaquePointer?
     private var ssh: SSH
     private let size: Int
