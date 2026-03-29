@@ -8,6 +8,7 @@ import libssh2
 
 /// SSH 通道封装类，负责具体的命令执行与数据流转
 public class Channel {
+    let mutex: Mutex = .init()
     /// libssh2 底层通道指针
     public internal(set) var _rawChannel: OpaquePointer?
     /// 所属的 SSH 实例
@@ -32,6 +33,10 @@ public extension Channel {
 
     /// 获取或打开底层通道。如果通道未打开，则尝试初始化一个新的 session 类型通道
     internal var rawChannel: OpaquePointer? {
+        mutex.lock()
+        defer {
+            mutex.unlock()
+        }
         guard rawSession != nil else {
             return nil
         }
