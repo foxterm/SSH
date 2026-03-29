@@ -99,7 +99,7 @@ public extension SCP {
         // 执行 I/O 拷贝，校验读取字节数是否等于预设大小
         let bytesSent = await io.Copy(
             stream,
-            SSHInputStream(handle: rawChannel, ssh: channel.ssh, stream: .stdout),
+            channel.write,
             channel.ssh.bufferSize,
             progress
         )
@@ -172,7 +172,7 @@ public extension SCP {
         // 使用专用的 SCPOutputStream 处理接收
         let rc = await io.Copy(
             stream,
-            SCPOutputStream(handle: rawChannel, ssh: channel.ssh, size: size),
+            SCPInputStream(handle: rawChannel, ssh: channel.ssh, size: size),
             channel.ssh.bufferSize
         ) { send in
             progress(send, size)
