@@ -97,16 +97,15 @@ extension Shell {
     }
 
     /// 向 Shell 写入二进制数据
-    func write(data: Data, stream: StreamType = .stdout) async -> Bool {
-        await write(data: .init(data: data), stream: stream, size: data.count)
+    func write(data: Data) async -> Bool {
+        await write(data: .init(data: data), size: data.count)
     }
 
     /// 通过流向 Shell 写入数据
-    func write(data: InputStream, stream: StreamType = .stdout, size: Int) async -> Bool {
+    func write(data: InputStream, size: Int) async -> Bool {
         guard rawChannel != nil else { return false }
-        // 使用自定义的 SSHInputStream 封装进行写入
         let code = await io.Copy(
-            data, SSHInputStream(handle: rawChannel, ssh: channel.ssh, stream: stream),
+            data, channel.write,
             size
         )
         return code > 0
@@ -132,7 +131,7 @@ extension Shell {
             while rawChannel != nil, !channel.receivedEOF {
                 rc = libssh2_poll(&poll, 1, 10)
                 if rc > 0 {
-                    revents = Int32(poll.revents)
+                    revents = poll.revents.int32
                     // 处理标准输出 (stdout)
                     if (revents & LIBSSH2_POLLFD_POLLIN) != 0 {
                         n = libssh2_channel_read_ex(rawChannel, 0, data.buffer, data.count)
