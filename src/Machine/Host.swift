@@ -11,7 +11,7 @@ public extension Machine {
         grep -E '^(ID|VERSION_ID)=' /etc/os-release 2>/dev/null | sed 's/"//g'
         """
 
-        guard let lines = await channel.exec(gatherCmd)?.string?.lines else { return nil }
+        guard let lines = await ssh.channel.exec(gatherCmd)?.string?.lines else { return nil }
 
         var platform = ""
         var version = ""
@@ -46,6 +46,6 @@ public extension Machine {
     /// 逻辑依据：通过 SSH 握手时服务器返回的 Banner 字符串进行特征匹配
     /// 例如：SSH-2.0-OpenSSH_for_Windows_8.1
     var isWindows: Bool {
-        channel.ssh.serverbanner?.lowercased().contains("windows") ?? false
+        ssh.serverBanner?.lowercased().contains("windows") ?? false
     }
 }
