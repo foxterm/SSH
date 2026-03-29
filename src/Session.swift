@@ -83,7 +83,7 @@ public extension SSH {
     }
 
     /// 获取服务器端的软件版本标识 (Banner)
-    var serverbanner: String? {
+    var serverBanner: String? {
         guard let rawSession else { return nil }
         return libssh2_session_banner_get(rawSession).string.trim
     }
@@ -198,7 +198,7 @@ public extension SSH {
 
     /// 获取容器管理组件
     var machine: Machine {
-        .init(channel: channel)
+        .init(ssh: self)
     }
 
     /// 安全释放 SSH 会话资源
