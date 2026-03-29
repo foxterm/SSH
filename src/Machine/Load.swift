@@ -10,8 +10,12 @@ public extension Machine {
     func getAvgStat() async -> AvgStat? {
         let cmd = "awk '{print $1\"|\"$2\"|\"$3}' /proc/loadavg 2>/dev/null"
 
-        guard let output = await channel.exec(cmd)?.string?.trimmingCharacters(in: .whitespacesAndNewlines),
-              !output.isEmpty else { return nil }
+        guard
+            let output = await ssh.channel.exec(cmd)?.string?.trimmingCharacters(
+                in: .whitespacesAndNewlines
+            ),
+            !output.isEmpty
+        else { return nil }
 
         let p = output.components(separatedBy: "|")
         guard p.count >= 3 else { return nil }
@@ -25,9 +29,12 @@ public extension Machine {
 
     /// 获取系统运行状态（启动时间、上下文切换、进程数等）
     func getSystemStat() async -> SystemStat? {
-        let cmd = "awk '/^(btime|ctxt|processes|procs_running|procs_blocked)/ {print $1\"|\"$2}' /proc/stat 2>/dev/null"
+        let cmd =
+            "awk '/^(btime|ctxt|processes|procs_running|procs_blocked)/ {print $1\"|\"$2}' /proc/stat 2>/dev/null"
 
-        guard let lines = await channel.exec(cmd)?.string?.lines, !lines.isEmpty else { return nil }
+        guard let lines = await ssh.channel.exec(cmd)?.string?.lines, !lines.isEmpty else {
+            return nil
+        }
 
         var sys = SystemStat()
         var found = false
@@ -36,7 +43,8 @@ public extension Machine {
             let p = line.components(separatedBy: "|")
             guard p.count == 2 else { continue }
 
-            let key = p[0], val = p[1].trimmingCharacters(in: .whitespaces)
+            let key = p[0]
+            let val = p[1].trimmingCharacters(in: .whitespaces)
             switch key {
             case "btime": sys.bootTime = Int(val) ?? 0
             case "ctxt": sys.context = Int(val) ?? 0
