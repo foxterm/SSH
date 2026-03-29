@@ -34,8 +34,8 @@ public extension Channel {
         if rawChannel != nil {
             closeChannel()
         }
-        rawChannel = await ssh.callSSH2 {
-            libssh2_channel_open_ex(self.rawSession, "session", 7, 0x200000, 0x8000, nil, 0)
+        rawChannel = await ssh.callSSH2 { [self] in
+            libssh2_channel_open_ex(rawSession, "session", 7, 0x200000, 0x8000, nil, 0)
         }
         return rawChannel != nil
     }
