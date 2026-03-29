@@ -25,7 +25,7 @@ public extension Machine {
         echo "$m"
         """
 
-        guard let output = await channel.exec(gatherCmd)?.string else { return nil }
+        guard let output = await ssh.channel.exec(gatherCmd)?.string else { return nil }
         let sections = output.components(separatedBy: "---")
         guard sections.count >= 4 else { return nil }
 
@@ -66,8 +66,14 @@ public extension Machine {
             let p = line.components(separatedBy: ":")
             guard p.count >= 3,
                   let pidStr = p[0].components(separatedBy: "/").filter({ !$0.isEmpty }).first,
-                  let pid = Int(pidStr) else { continue }
-            let val = Int64(p[2].trimmingCharacters(in: .whitespaces).replacingOccurrences(of: " kB", with: "")) ?? 0
+                  let pid = Int(pidStr)
+            else { continue }
+            let val =
+                Int64(
+                    p[2].trimmingCharacters(in: .whitespaces).replacingOccurrences(
+                        of: " kB", with: ""
+                    )
+                ) ?? 0
             memDict[pid] = val * 1024
         }
 
