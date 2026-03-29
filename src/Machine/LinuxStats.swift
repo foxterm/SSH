@@ -65,40 +65,31 @@ public struct CPUTimesStat: Identifiable, Equatable {
 public extension CPUTimesStat {
     static func calculateUsage(t1: CPUTimesStat, t2: CPUTimesStat) -> CPUTimesStat {
         var result = t2
-
         let deltaTotal = t2.total - t1.total
-        guard deltaTotal > 0 else {
-            // 如果时间差为负或零，返回所有百分比为0的当前状态
-            return result
+
+        guard deltaTotal > 0 else { return result }
+
+        /// 计算辅助函数，确保范围在 0-1
+        func getPercent(_ delta: Double) -> Double {
+            min(1.0, max(0.0, delta / deltaTotal))
         }
 
-        // 计算每个组件的增量
-        let deltaUser = t2.user - t1.user
-        let deltaSystem = t2.system - t1.system
-        let deltaIdle = t2.idle - t1.idle
-        let deltaNice = t2.nice - t1.nice
-        let deltaIowait = t2.iowait - t1.iowait
-        let deltaIrq = t2.irq - t1.irq
-        let deltaSoftirq = t2.softirq - t1.softirq
-        let deltaSteal = t2.steal - t1.steal
-        let deltaGuest = t2.guest - t1.guest
-        let deltaGuestNice = t2.guestNice - t1.guestNice
+        // 计算百分比
+        result.userPercent = getPercent(t2.user - t1.user)
+        result.systemPercent = getPercent(t2.system - t1.system)
+        result.idlePercent = getPercent(t2.idle - t1.idle)
+        result.nicePercent = getPercent(t2.nice - t1.nice)
+        result.iowaitPercent = getPercent(t2.iowait - t1.iowait)
+        result.irqPercent = getPercent(t2.irq - t1.irq)
+        result.softirqPercent = getPercent(t2.softirq - t1.softirq)
+        result.stealPercent = getPercent(t2.steal - t1.steal)
 
-        // 计算每个组件的百分比
-        result.userPercent = min(1, max(0, deltaUser / deltaTotal))
-        result.systemPercent = min(1, max(0, deltaSystem / deltaTotal))
-        result.idlePercent = min(1, max(0, deltaIdle / deltaTotal))
-        result.nicePercent = min(1, max(0, deltaNice / deltaTotal))
-        result.iowaitPercent = min(1, max(0, deltaIowait / deltaTotal))
-        result.irqPercent = min(1, max(0, deltaIrq / deltaTotal))
-        result.softirqPercent = min(1, max(0, deltaSoftirq / deltaTotal))
-        result.stealPercent = min(1, max(0, deltaSteal / deltaTotal))
-        result.guestPercent = min(1, max(0, deltaGuest / deltaTotal))
-        result.guestNicePercent = min(1, max(0, deltaGuestNice / deltaTotal))
+        // Guest 占比通常是相对于 user 的细分指标
+        result.guestPercent = getPercent(t2.guest - t1.guest)
 
-        // 计算总使用率
+        // 最终总使用率
         let deltaBusy = t2.busy - t1.busy
-        result.percent = min(1, max(0, deltaBusy / deltaTotal))
+        result.percent = getPercent(deltaBusy)
 
         return result
     }
@@ -108,7 +99,7 @@ public extension CPUTimesStat {
     }
 
     var total: Double {
-        user + system + idle + nice + iowait + irq + softirq + steal + guest + guestNice
+        user + nice + system + idle + iowait + irq + softirq + steal
     }
 }
 
