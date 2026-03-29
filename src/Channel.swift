@@ -92,14 +92,14 @@ public extension Channel {
         // 并发读取标准输出和标准错误
         async let stdout = io.Copy(
             output,
-            SSHOutputStream(handle: rawChannel, ssh: ssh, stream: .stdout),
+            read,
             ssh.bufferSize
         ) { count in
             max < 1 || count < max
         }
         async let stderr = io.Copy(
             outerr,
-            SSHOutputStream(handle: rawChannel, ssh: ssh, stream: .stderr),
+            readErr,
             ssh.bufferSize
         ) { count in
             max < 1 || count < max
@@ -114,6 +114,22 @@ public extension Channel {
         }
         closeChannel()
         return bytesRead >= 0
+    }
+
+    var read: InputStream {
+        SSHInputStream(handle: rawChannel, ssh: ssh, stream: .stdout)
+    }
+
+    var readErr: InputStream {
+        SSHInputStream(handle: rawChannel, ssh: ssh, stream: .stderr)
+    }
+
+    var write: OutputStream {
+        SSHOutputStream(handle: rawChannel, ssh: ssh, stream: .stdout)
+    }
+
+    var writeErr: OutputStream {
+        SSHOutputStream(handle: rawChannel, ssh: ssh, stream: .stderr)
     }
 
     /// 测试通道连通性
