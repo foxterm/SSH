@@ -35,7 +35,7 @@ public extension Machine {
             "cpu", "acpitz", "virt_temp", "package", "soc",
         ]
 
-        guard let lines = await channel.exec(gatherCmd)?.string?.lines else { return nil }
+        guard let lines = await ssh.channel.exec(gatherCmd)?.string?.lines else { return nil }
 
         var ret: [TemperatureStat] = []
 
@@ -61,7 +61,8 @@ public extension Machine {
 
             // 识别逻辑：驱动名命中 或 标签包含核心关键字
             let nameMatch = cpuKeywords.contains { name.contains($0) }
-            let labelMatch = label.contains("core") || label.contains("pkg") || label.contains("package")
+            let labelMatch =
+                label.contains("core") || label.contains("pkg") || label.contains("package")
 
             t.cpu = nameMatch || labelMatch
             ret.append(t)
