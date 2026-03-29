@@ -500,6 +500,7 @@ public extension SFTP {
         _ = await ssh.callSSH2 { [self] in
             libssh2_sftp_close_handle(handle)
         }
+        handle = nil
     }
 
     /// 释放 SFTP 资源并关闭会话
