@@ -486,12 +486,10 @@ public extension SFTP {
     /// 释放 SFTP 资源并关闭会话
     /// 使用互斥锁保证线程安全，防止多次释放
     func freeSFTP() {
-        ssh.mutex.withLock {
-            guard rawSFTP != nil else {
-                return
-            }
-            libssh2_sftp_shutdown(rawSFTP)
-            self._rawSFTP = nil
+        guard rawSFTP != nil else {
+            return
         }
+        libssh2_sftp_shutdown(rawSFTP)
+        _rawSFTP = nil
     }
 }
