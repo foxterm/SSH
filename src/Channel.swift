@@ -128,10 +128,6 @@ public extension Channel {
         SSHOutputStream(handle: rawChannel, ssh: ssh, stream: .stdout)
     }
 
-    var writeErr: OutputStream {
-        SSHOutputStream(handle: rawChannel, ssh: ssh, stream: .stderr)
-    }
-
     /// 测试通道连通性
     func testEcho() async -> Bool {
         guard let data = await exec("echo \">TEST<\"", max: 7) else {
