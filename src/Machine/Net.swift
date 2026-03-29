@@ -16,7 +16,7 @@ public extension Machine {
         done
         """
 
-        guard let output = await channel.exec(gatherCmd)?.string else { return nil }
+        guard let output = await ssh.channel.exec(gatherCmd)?.string else { return nil }
         let sections = output.components(separatedBy: "---")
         guard sections.count >= 2 else { return nil }
 
@@ -85,7 +85,7 @@ public extension Machine {
         awk 'NR>1 {st[$4]++} END {for(s in st) print "v6|udp|"s"|"st[s]}' /proc/net/udp6 2>/dev/null
         """
 
-        guard let lines = await channel.exec(gatherCmd)?.string?.lines else { return nil }
+        guard let lines = await ssh.channel.exec(gatherCmd)?.string?.lines else { return nil }
 
         var ret: [NetConnStat] = []
 
