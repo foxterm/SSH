@@ -25,7 +25,7 @@ public class Forward {
 public extension Forward {
     /// 获取底层的 libssh2 通道指针
     internal var rawChannel: OpaquePointer? {
-        channel._rawChannel
+        channel.rawChannel
     }
 
     /// 获取底层的 libssh2 会话指针
@@ -48,7 +48,7 @@ public extension Forward {
             return false
         }
         // 开启直接 TCP/IP 转发通道
-        channel._rawChannel = await channel.ssh.callSSH2 { [self] in
+        channel.rawChannel = await channel.ssh.callSSH2 { [self] in
             libssh2_channel_direct_tcpip_ex(rawSession, host, Int32(port), shost, Int32(sport))
         }
         guard rawChannel != nil else {
@@ -72,7 +72,7 @@ public extension Forward {
             return false
         }
         // 开启 Unix Domain Socket 转发通道
-        channel._rawChannel = await channel.ssh.callSSH2 { [self] in
+        channel.rawChannel = await channel.ssh.callSSH2 { [self] in
             libssh2_channel_direct_streamlocal_ex(rawSession, socketPath, shost, Int32(sport))
         }
         guard rawChannel != nil else {
