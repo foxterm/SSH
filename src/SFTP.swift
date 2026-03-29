@@ -11,6 +11,8 @@ public class SFTP {
     let mutex: Mutex = .init()
     /// 内部持有的 libssh2 SFTP 会话原始指针
     public internal(set) var _rawSFTP: OpaquePointer?
+    public internal(set) var handle: OpaquePointer?
+
     /// 关联的 SSH 会话实例
     let ssh: SSH
 
@@ -154,8 +156,9 @@ public extension SFTP {
     ///   - permissions: 文件权限
     /// - Returns: 是否成功
     func mkfile(path: String, permissions: FilePermissions = .default) async -> Bool {
+        await closeHandle()
         guard rawSFTP != nil else { return false }
-        let handle = await ssh.callSSH2 { [self] in
+        handle = await ssh.callSSH2 { [self] in
             libssh2_sftp_open_ex(
                 rawSFTP,
                 path,
@@ -165,8 +168,8 @@ public extension SFTP {
                 LIBSSH2_SFTP_OPENFILE
             )
         }
-        guard let handle else { return false }
-        libssh2_sftp_close_handle(handle)
+        guard handle != nil else { return false }
+        await closeHandle()
         return true
     }
 
@@ -276,25 +279,24 @@ public extension SFTP {
     /// - Parameter path: 目录路径，默认 "/"
     /// - Returns: 文件属性列表
     func openDir(path: String = "/") async -> [FileAttributes] {
+        await closeHandle()
         guard rawSFTP != nil else {
             return []
         }
-        let handle = await ssh.callSSH2 { [self] in
+        handle = await ssh.callSSH2 { [self] in
             libssh2_sftp_open_ex(rawSFTP, path, path.count.uint32, UInt(LIBSSH2_FXF_READ), 0, LIBSSH2_SFTP_OPENDIR)
         }
-        guard let handle else {
+        guard handle != nil else {
             return []
         }
-        defer {
-            libssh2_sftp_close_handle(handle)
-        }
+
         var data: [FileAttributes] = []
         var rc: Int32
         let buffer: Buffer<CChar> = .init(0x200)
         let longEntry: Buffer<CChar> = .init(0x400)
         var attrs = LIBSSH2_SFTP_ATTRIBUTES()
         repeat {
-            rc = await ssh.callSSH2 {
+            rc = await ssh.callSSH2 { [self] in
                 libssh2_sftp_readdir_ex(handle, buffer.buffer, buffer.count, longEntry.buffer, longEntry.count, &attrs)
             }
             if rc > 0 {
@@ -306,6 +308,7 @@ public extension SFTP {
                 data.append(FileAttributes(name: name, longname: longname, attributes: attrs))
             }
         } while rc > 0
+        await closeHandle()
         return data
     }
 
@@ -374,11 +377,12 @@ public extension SFTP {
         permissions: FilePermissions,
         progress: @escaping (_ send: Int) -> Bool = { _ in true }
     ) async -> Bool {
+        await closeHandle()
         guard rawSFTP != nil else {
             return false
         }
         // 打开远程文件进行写入（创建/覆盖/截断）
-        let handle = await ssh.callSSH2 { [self] in
+        handle = await ssh.callSSH2 { [self] in
             libssh2_sftp_open_ex(
                 rawSFTP,
                 remotePath,
@@ -391,13 +395,12 @@ public extension SFTP {
         guard handle != nil else {
             return false
         }
-        defer {
-            libssh2_sftp_close_handle(handle)
-        }
         // 使用 io.Copy 进行流式传输
-        guard await io.Copy(stream, SSHInputStream(handle: handle, ssh: ssh, stream: .sftp), ssh.bufferSize, progress) == size.int else {
+        guard await io.Copy(stream, write, ssh.bufferSize, progress) == size.int else {
+            await closeHandle()
             return false
         }
+        await closeHandle()
         return true
     }
 
@@ -442,6 +445,7 @@ public extension SFTP {
         remotePath: String,
         progress: @escaping (_ send: Int, _ size: Int) -> Bool = { _, _ in true }
     ) async -> Bool {
+        await closeHandle()
         guard rawSFTP != nil else {
             return false
         }
@@ -455,7 +459,7 @@ public extension SFTP {
         }
 
         // 打开远程文件进行读取
-        let handle = await ssh.callSSH2 { [self] in
+        handle = await ssh.callSSH2 { [self] in
             libssh2_sftp_open_ex(
                 rawSFTP,
                 remotePath,
@@ -468,19 +472,34 @@ public extension SFTP {
         guard handle != nil else {
             return false
         }
-        defer {
-            libssh2_sftp_close_handle(handle)
-        }
-
         let size = fileinfo.filesize.int
-        let rc = await io.Copy(stream, SSHOutputStream(handle: handle, ssh: ssh, stream: .sftp), ssh.bufferSize) { send in
+        let rc = await io.Copy(stream, read, ssh.bufferSize) { send in
             progress(send, size)
         }
         // 校验下载字节数是否与文件属性大小一致
         guard rc == size else {
+            await closeHandle()
             return false
         }
+        await closeHandle()
         return true
+    }
+
+    var read: InputStream {
+        SSHInputStream(handle: handle, ssh: ssh, stream: .sftp)
+    }
+
+    var write: OutputStream {
+        SSHOutputStream(handle: handle, ssh: ssh, stream: .sftp)
+    }
+
+    func closeHandle() async {
+        guard handle != nil else {
+            return
+        }
+        _ = await ssh.callSSH2 { [self] in
+            libssh2_sftp_close_handle(handle)
+        }
     }
 
     /// 释放 SFTP 资源并关闭会话
