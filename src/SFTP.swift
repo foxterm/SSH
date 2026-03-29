@@ -8,6 +8,7 @@ import libssh2
 
 /// SFTP 客户端类，封装了基于 libssh2 的文件传输协议操作
 public class SFTP {
+    let mutex: Mutex = .init()
     /// 内部持有的 libssh2 SFTP 会话原始指针
     public internal(set) var _rawSFTP: OpaquePointer?
     /// 关联的 SSH 会话实例
@@ -32,6 +33,10 @@ public extension SFTP {
 
     /// 获取或初始化 SFTP 会话指针
     internal var rawSFTP: OpaquePointer? {
+        mutex.lock()
+        defer {
+            mutex.unlock()
+        }
         guard rawSession != nil else { return nil }
         if _rawSFTP != nil { return _rawSFTP }
 
