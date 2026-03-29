@@ -49,7 +49,7 @@ public extension Forward {
         }
         // 开启直接 TCP/IP 转发通道
         channel.rawChannel = await channel.ssh.callSSH2 { [self] in
-            libssh2_channel_direct_tcpip_ex(rawSession, host, Int32(port), shost, Int32(sport))
+            libssh2_channel_direct_tcpip_ex(rawSession, host, port.int32, shost, sport.int32)
         }
         guard rawChannel != nil else {
             return false
@@ -73,7 +73,7 @@ public extension Forward {
         }
         // 开启 Unix Domain Socket 转发通道
         channel.rawChannel = await channel.ssh.callSSH2 { [self] in
-            libssh2_channel_direct_streamlocal_ex(rawSession, socketPath, shost, Int32(sport))
+            libssh2_channel_direct_streamlocal_ex(rawSession, socketPath, shost, sport.int32)
         }
         guard rawChannel != nil else {
             return false
@@ -92,13 +92,13 @@ public extension Forward {
         // 1. 远程 -> 本地 (stdout 作为数据负载)
         async let toLocal = io.Copy(
             write,
-            SSHOutputStream(handle: rawChannel, ssh: channel.ssh, stream: .stdout),
+            channel.read,
             channel.ssh.bufferSize
         )
         // 2. 本地 -> 远程
         async let toRemote = io.Copy(
             read,
-            SSHInputStream(handle: rawChannel, ssh: channel.ssh, stream: .stdout),
+            channel.write,
             channel.ssh.bufferSize
         )
 
