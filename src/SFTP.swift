@@ -13,6 +13,9 @@ public class SFTP {
     public internal(set) var _rawSFTP: OpaquePointer?
     public internal(set) var handle: OpaquePointer?
 
+    /// SFTP 列表显示时默认忽略的文件名
+    public var ignoredfiles: [String] = [".", ".."]
+
     /// 关联的 SSH 会话实例
     let ssh: SSH
 
@@ -302,7 +305,7 @@ public extension SFTP {
             if rc > 0 {
                 let name = String(cString: buffer.buffer)
                 let longname = String(cString: longEntry.buffer)
-                guard !ssh.ignoredfiles.contains(name) else {
+                guard !ignoredfiles.contains(name) else {
                     continue
                 }
                 data.append(FileAttributes(name: name, longname: longname, attributes: attrs))
