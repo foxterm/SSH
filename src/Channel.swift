@@ -8,9 +8,8 @@ import libssh2
 
 /// SSH 通道封装类，负责具体的命令执行与数据流转
 public class Channel {
-    let mutex: Mutex = .init()
     /// libssh2 底层通道指针
-    public internal(set) var _rawChannel: OpaquePointer?
+    public internal(set) var rawChannel: OpaquePointer?
     /// 所属的 SSH 实例
     let ssh: SSH
 
@@ -31,23 +30,14 @@ public extension Channel {
         ssh.rawSession
     }
 
-    /// 获取或打开底层通道。如果通道未打开，则尝试初始化一个新的 session 类型通道
-    internal var rawChannel: OpaquePointer? {
-        mutex.lock()
-        defer {
-            mutex.unlock()
+    func newSession() async -> Bool {
+        if rawChannel != nil {
+            closeChannel()
         }
-        guard rawSession != nil else {
-            return nil
-        }
-        if _rawChannel != nil {
-            return _rawChannel
-        }
-        // 打开扩展会话通道 (窗口大小 2MB, 报文大小 32KB)
-        _rawChannel = ssh.callSSH2 {
+        rawChannel = await ssh.callSSH2 {
             libssh2_channel_open_ex(self.rawSession, "session", 7, 0x200000, 0x8000, nil, 0)
         }
-        return _rawChannel
+        return rawChannel != nil
     }
 
     /// 执行简单的 Shell 命令并直接返回结果 Data
@@ -78,7 +68,7 @@ public extension Channel {
     func exec(
         _ command: String, output: OutputStream, outerr: OutputStream, max: Int = 0
     ) async -> Bool {
-        guard rawChannel != nil else {
+        guard await newSession() else {
             return false
         }
         #if DEBUG
@@ -211,7 +201,7 @@ public extension Channel {
 
         // 强制释放指针
         libssh2_channel_free(rawChannel)
-        _rawChannel = nil
+        rawChannel = nil
         #if DEBUG
             print("♻️", "Channel closed and freed safely")
         #endif
