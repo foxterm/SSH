@@ -9,8 +9,12 @@ public extension Machine {
     /// - Returns: 容器状态数组，失败返回 nil
     func getDockerStat() async -> [DockerStat]? {
         let format = "\"{{.ID}}|{{.Image}}|{{.Names}}|{{.Status}}|{{.CreatedAt}}|{{.Ports}}\""
-        guard let data = await channel.exec([container.command, "ps", "-a", "--no-trunc", "--format", format]),
-              let text = data.string else { return nil }
+        guard
+            let data = await ssh.channel.exec([
+                container.command, "ps", "-a", "--no-trunc", "--format", format,
+            ]),
+            let text = data.string
+        else { return nil }
 
         return parseDockerOutput(text, count: 4).map { cols in
             DockerStat(
@@ -33,27 +37,27 @@ public extension Machine {
         var cmd = [container.command, "rm"]
         if force { cmd.append("-f") }
         cmd.append(id)
-        return await channel.exec(cmd) != nil
+        return await ssh.channel.exec(cmd) != nil
     }
 
     /// 启动容器
     func dockerStart(_ id: String) async -> Bool {
-        await channel.exec([container.command, "start", id]) != nil
+        await ssh.channel.exec([container.command, "start", id]) != nil
     }
 
     /// 停止容器
     func dockerStop(_ id: String) async -> Bool {
-        await channel.exec([container.command, "stop", id]) != nil
+        await ssh.channel.exec([container.command, "stop", id]) != nil
     }
 
     /// 重启容器
     func dockerRestart(_ id: String) async -> Bool {
-        await channel.exec([container.command, "restart", id]) != nil
+        await ssh.channel.exec([container.command, "restart", id]) != nil
     }
 
     /// 获取容器详细配置信息 (JSON 格式)
     func dockerInspect(_ id: String) async -> String? {
-        guard let data = await channel.exec([container.command, "inspect", id]) else {
+        guard let data = await ssh.channel.exec([container.command, "inspect", id]) else {
             return nil
         }
         return data.string?.trim
@@ -65,21 +69,23 @@ public extension Machine {
     ///   - tail: 获取最后的行数，默认 1000
     func dockerLogs(_ id: String, tail: Int = 1000) async -> String? {
         let cmd = [container.command, "logs", "--tail", "\(tail)", id]
-        return await channel.exec(cmd)?.string?.trim
+        return await ssh.channel.exec(cmd)?.string?.trim
     }
 
     /// 清理所有处于停止状态的容器
     func dockerPrune() async -> Bool {
-        await channel.exec([container.command, "container", "prune", "-f"]) != nil
+        await ssh.channel.exec([container.command, "container", "prune", "-f"]) != nil
     }
 
     /// 获取容器实时资源占用情况 (CPU、内存、网络 IO 等)
     func getDockerStats() async -> [DockerStats]? {
         let format = "\"{{.ID}}|{{.Name}}|{{.CPUPerc}}|{{.MemPerc}}|{{.NetIO}}|{{.BlockIO}}\""
-        guard let data = await channel.exec(
-            [container.command, "stats", "--no-trunc", "--no-stream", "--format", format]
-        ),
-            let text = data.string else { return nil }
+        guard
+            let data = await ssh.channel.exec(
+                [container.command, "stats", "--no-trunc", "--no-stream", "--format", format]
+            ),
+            let text = data.string
+        else { return nil }
 
         return parseDockerOutput(text, count: 6).map { cols in
             DockerStats(
