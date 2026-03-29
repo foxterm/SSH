@@ -49,8 +49,6 @@ public class SSH {
 
     /// 数据传输缓冲区大小，默认 64K
     public var bufferSize = 0x10000 // 64K
-    /// SFTP 列表显示时默认忽略的文件名
-    public var ignoredfiles: [String] = [".", ".."]
 
     /// 记录最近一次发生的错误描述
     public internal(set) var error: String?
