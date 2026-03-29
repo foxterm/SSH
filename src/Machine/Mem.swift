@@ -13,7 +13,7 @@ public extension Machine {
         awk '{print $1"|"$2}' /proc/meminfo | sed 's/://g'
         """
 
-        guard let lines = await channel.exec(gatherCmd)?.string?.lines else { return nil }
+        guard let lines = await ssh.channel.exec(gatherCmd)?.string?.lines else { return nil }
 
         var ret = VirtualMemoryStat()
         var memavailFound = false
@@ -30,7 +30,8 @@ public extension Machine {
             switch key {
             case "MemTotal": ret.total = bytes
             case "MemFree": ret.free = bytes
-            case "MemAvailable": ret.available = bytes
+            case "MemAvailable":
+                ret.available = bytes
                 memavailFound = true
             case "Buffers": ret.buffers = bytes
             case "Cached": ret.cached = bytes
