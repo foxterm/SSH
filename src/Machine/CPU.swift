@@ -21,7 +21,7 @@ public extension Machine {
         done
         """
 
-        guard let lines = await channel.exec(gatherCmd)?.string?.lines else { return nil }
+        guard let lines = await ssh.channel.exec(gatherCmd)?.string?.lines else { return nil }
 
         var ret: [CPUTimesStat] = []
 
