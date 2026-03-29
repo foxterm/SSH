@@ -25,7 +25,7 @@ public class SCP {
 public extension SCP {
     /// 获取底层的 libssh2 通道指针
     internal var rawChannel: OpaquePointer? {
-        channel._rawChannel
+        channel.rawChannel
     }
 
     /// 获取底层的 libssh2 会话指针
@@ -88,7 +88,7 @@ public extension SCP {
             return false
         }
         // 初始化 SCP 发送会话 (使用 64 位版本以支持 >2GB 文件)
-        channel._rawChannel = await channel.ssh.callSSH2 { [self] in
+        channel.rawChannel = await channel.ssh.callSSH2 { [self] in
             libssh2_scp_send64(rawSession, remotePath, mode, size, 0, 0)
         }
         guard rawChannel != nil else {
@@ -104,7 +104,7 @@ public extension SCP {
             progress
         )
 
-        guard bytesSent == Int(size) else {
+        guard bytesSent == size.int else {
             _ = channel.sendEof()
             channel.closeChannel()
             return false
@@ -154,7 +154,7 @@ public extension SCP {
         }
         var fileinfo = libssh2_struct_stat()
         // 初始化 SCP 接收会话，获取文件元数据
-        channel._rawChannel = await channel.ssh.callSSH2 { [self] in
+        channel.rawChannel = await channel.ssh.callSSH2 { [self] in
             libssh2_scp_recv2(rawSession, remotePath, &fileinfo)
         }
         guard rawChannel != nil else {
@@ -162,7 +162,7 @@ public extension SCP {
         }
         libssh2_channel_set_blocking(rawChannel, 0)
 
-        let size = Int(fileinfo.st_size)
+        let size = fileinfo.st_size.int
         // 处理空文件情况
         guard size > 0 else {
             channel.closeChannel()
@@ -197,7 +197,7 @@ public extension SCP {
             return nil
         }
         var fileinfo = libssh2_struct_stat()
-        channel._rawChannel = await channel.ssh.callSSH2 { [self] in
+        channel.rawChannel = await channel.ssh.callSSH2 { [self] in
             libssh2_scp_recv2(rawSession, filename, &fileinfo)
         }
         guard rawChannel != nil else {
