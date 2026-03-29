@@ -39,7 +39,7 @@ extension SSH {
                 // 如果返回 EAGAIN，说明当前 IO 未就绪，进入 waitsocket 挂起一小段时间后重试
                 guard ret == T(LIBSSH2_ERROR_EAGAIN) else { break }
                 waitsocket()
-            } while true
+            } while ret == T(LIBSSH2_ERROR_EAGAIN)
             return ret
         }
     }
@@ -55,7 +55,7 @@ extension SSH {
                 // 只有当返回为 nil 且 errno 为 EAGAIN 时才进行重试
                 guard ret == nil, rawSession != nil, libssh2_session_last_errno(rawSession) == LIBSSH2_ERROR_EAGAIN else { break }
                 waitsocket()
-            } while true
+            } while ret == nil
             return ret
         }
     }
