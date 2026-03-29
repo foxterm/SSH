@@ -42,13 +42,13 @@ extension Shell {
         type: PtyType = .xterm, width: Int32 = LIBSSH2_TERM_WIDTH,
         height: Int32 = LIBSSH2_TERM_HEIGHT
     ) async -> Bool {
-        guard let rawChannel else { return false }
+        guard await channel.newSession() else { return false }
 
         // 设置渠道为非阻塞模式，以便进行轮询
         libssh2_channel_set_blocking(rawChannel, 0)
 
         // 1. 请求伪终端 (PTY)
-        var code = await channel.ssh.callSSH2 {
+        var code = await channel.ssh.callSSH2 { [self] in
             libssh2_channel_request_pty_ex(
                 rawChannel, type.name, type.name.count.uint32, nil, 0, width, height,
                 LIBSSH2_TERM_WIDTH_PX, LIBSSH2_TERM_HEIGHT_PX
@@ -60,7 +60,7 @@ extension Shell {
         }
 
         // 2. 启动 Shell 进程
-        code = await channel.ssh.callSSH2 {
+        code = await channel.ssh.callSSH2 { [self] in
             libssh2_channel_process_startup(rawChannel, "shell", 5, nil, 0)
         }
         guard code == LIBSSH2_ERROR_NONE else {
