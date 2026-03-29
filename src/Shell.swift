@@ -76,8 +76,8 @@ extension Shell {
 
     /// 动态调整终端窗口大小（通常在 App 窗口尺寸变化时调用）
     func requestPtySize(width: Int32, height: Int32) async -> Bool {
-        guard let rawChannel else { return false }
-        let code = await channel.ssh.callSSH2 {
+        guard rawChannel != nil else { return false }
+        let code = await channel.ssh.callSSH2 { [self] in
             libssh2_channel_request_pty_size_ex(
                 rawChannel, width, height, LIBSSH2_TERM_WIDTH_PX, LIBSSH2_TERM_HEIGHT_PX
             )
@@ -87,8 +87,8 @@ extension Shell {
 
     /// 设置环境变量
     func setEnv(name: String, value: String) async -> Bool {
-        guard let rawChannel else { return false }
-        let code = await channel.ssh.callSSH2 {
+        guard rawChannel != nil else { return false }
+        let code = await channel.ssh.callSSH2 { [self] in
             libssh2_channel_setenv_ex(
                 rawChannel, name, name.count.uint32, value, value.count.uint32
             )
@@ -117,7 +117,7 @@ extension Shell {
     private func pollShell() {
         libssh2_channel_set_blocking(rawChannel, 0)
         queue.async { [self] in
-            guard let rawChannel else { return }
+            guard rawChannel != nil else { return }
 
             var poll = LIBSSH2_POLLFD()
             poll.type = LIBSSH2_POLLFD_SOCKET.uint8
@@ -129,7 +129,7 @@ extension Shell {
             var rc, revents: Int32
             var n: Int
             // 循环监听直到渠道关闭或收到 EOF
-            while self.rawChannel != nil, !channel.receivedEOF {
+            while rawChannel != nil, !channel.receivedEOF {
                 rc = libssh2_poll(&poll, 1, 10)
                 if rc > 0 {
                     revents = Int32(poll.revents)
