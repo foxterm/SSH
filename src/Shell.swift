@@ -39,8 +39,8 @@ extension Shell {
     ///   - height: 终端字符高度
     /// - Returns: 启动是否成功
     func shell(
-        type: PtyType = .xterm, width: Int32 = LIBSSH2_TERM_WIDTH,
-        height: Int32 = LIBSSH2_TERM_HEIGHT
+        type: PtyType = .xterm, width: Int = LIBSSH2_TERM_WIDTH.int,
+        height: Int = LIBSSH2_TERM_HEIGHT.int
     ) async -> Bool {
         guard await channel.newSession() else { return false }
 
@@ -50,7 +50,7 @@ extension Shell {
         // 1. 请求伪终端 (PTY)
         var code = await channel.ssh.callSSH2 { [self] in
             libssh2_channel_request_pty_ex(
-                rawChannel, type.name, type.name.count.uint32, nil, 0, width, height,
+                rawChannel, type.name, type.name.count.uint32, nil, 0, width.int32, height.int32,
                 LIBSSH2_TERM_WIDTH_PX, LIBSSH2_TERM_HEIGHT_PX
             )
         }
@@ -75,11 +75,11 @@ extension Shell {
     }
 
     /// 动态调整终端窗口大小（通常在 App 窗口尺寸变化时调用）
-    func requestPtySize(width: Int32, height: Int32) async -> Bool {
+    func requestPtySize(width: Int, height: Int) async -> Bool {
         guard rawChannel != nil else { return false }
         let code = await channel.ssh.callSSH2 { [self] in
             libssh2_channel_request_pty_size_ex(
-                rawChannel, width, height, LIBSSH2_TERM_WIDTH_PX, LIBSSH2_TERM_HEIGHT_PX
+                rawChannel, width.int32, height.int32, LIBSSH2_TERM_WIDTH_PX, LIBSSH2_TERM_HEIGHT_PX
             )
         }
         return code == LIBSSH2_ERROR_NONE
