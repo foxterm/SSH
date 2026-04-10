@@ -8,12 +8,14 @@ import libssh2
 
 /// Shell 交互类，负责管理 SSH 渠道的伪终端 (PTY) 会话与数据交互
 public class Shell {
+    let wait: WaitGroup = .init()
     /// Shell 事件回调代理
     public var shellDelegate: ShellDelegate?
     /// 用于轮询读取远程输出的专用串行队列，避免阻塞主线程
-    let queue = DispatchQueue(label: "app.foxterm.ssh-loop", qos: .userInitiated)
+    let queue: DispatchQueue = .global(qos: .userInteractive)
     /// 关联的底层通信渠道
     let channel: Channel
+    var running: Bool = false
 
     init(channel: Channel) {
         self.channel = channel
@@ -26,7 +28,7 @@ public class Shell {
     }
 }
 
-extension Shell {
+public extension Shell {
     /// 获取底层的 libssh2 渠道指针
     var rawChannel: OpaquePointer? {
         channel.rawChannel
@@ -115,11 +117,11 @@ extension Shell {
     /// 在独立后台队列中运行，通过 libssh2_poll 监听读取事件
     private func pollShell() {
         libssh2_channel_set_blocking(rawChannel, 0)
+        running = true
         queue.async { [self] in
-            guard rawChannel != nil else { return }
-
+            wait.add()
             var poll = LIBSSH2_POLLFD()
-            poll.type = LIBSSH2_POLLFD_SOCKET.uint8
+            poll.type = LIBSSH2_POLLFD_CHANNEL.uint8
             poll.fd.channel = rawChannel
             poll.events = LIBSSH2_POLLFD_POLLIN.uint | LIBSSH2_POLLFD_POLLEXT.uint
 
@@ -127,32 +129,39 @@ extension Shell {
 
             var rc, revents: Int32
             var n: Int
-            // 循环监听直到渠道关闭或收到 EOF
-            while rawChannel != nil, !channel.receivedEOF {
+            while running, !channel.ssh.isClose {
+                guard rawChannel != nil, !channel.receivedEOF else {
+                    break
+                }
                 rc = libssh2_poll(&poll, 1, 10)
-                if rc > 0 {
-                    revents = poll.revents.int32
-                    // 处理标准输出 (stdout)
-                    if (revents & LIBSSH2_POLLFD_POLLIN) != 0 {
-                        n = libssh2_channel_read_ex(rawChannel, 0, data.buffer, data.count)
-                        if n > 0 {
-                            onStdout(.init(bytes: data.buffer, count: n))
-                        }
-                    }
-                    // 处理标准错误 (stderr/ext)
-                    if (revents & LIBSSH2_POLLFD_POLLEXT) != 0 {
-                        n = libssh2_channel_read_ex(rawChannel, 1, data.buffer, data.count)
-                        if n > 0 {
-                            onStderr(.init(bytes: data.buffer, count: n))
-                        }
-                    }
-                    // 检查渠道是否已关闭
-                    if (revents & LIBSSH2_POLLFD_CHANNEL_CLOSED) != 0 {
-                        closeShell()
-                        break
+                if rc < 1 {
+                    continue
+                }
+                revents = poll.revents.int32
+                // 处理标准输出 (stdout)
+                if (revents & LIBSSH2_POLLFD_POLLIN) != 0 {
+                    n = libssh2_channel_read_ex(rawChannel, 0, data.buffer, data.count)
+                    if n > 0 {
+                        onStdout(.init(bytes: data.buffer, count: n))
                     }
                 }
+                // 处理标准错误 (stderr/ext)
+                if (revents & LIBSSH2_POLLFD_POLLEXT) != 0 {
+                    n = libssh2_channel_read_ex(rawChannel, 1, data.buffer, data.count)
+                    if n > 0 {
+                        onStderr(.init(bytes: data.buffer, count: n))
+                    }
+                }
+                // 检查渠道是否已关闭
+                if (revents & LIBSSH2_POLLFD_CHANNEL_CLOSED) != 0 {
+                    break
+                }
             }
+            #if DEBUG
+                print("♻️", "libssh2_poll")
+            #endif
+            wait.done()
+            closeShell()
         }
     }
 
@@ -172,6 +181,8 @@ extension Shell {
 
     /// 关闭 Shell 会话并释放关联资源
     func closeShell() {
+        running = false
+        wait.wait()
         if channel.sendEof() {
             channel.waitEOF()
         }
