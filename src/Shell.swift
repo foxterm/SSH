@@ -28,9 +28,9 @@ public class Shell {
     }
 }
 
-public extension Shell {
+extension Shell {
     /// 获取底层的 libssh2 渠道指针
-    var rawChannel: OpaquePointer? {
+    public var rawChannel: OpaquePointer? {
         channel.rawChannel
     }
 
@@ -40,7 +40,7 @@ public extension Shell {
     ///   - width: 终端字符宽度
     ///   - height: 终端字符高度
     /// - Returns: 启动是否成功
-    func shell(
+    public func shell(
         type: PtyType = .xterm, width: Int = LIBSSH2_TERM_WIDTH.int,
         height: Int = LIBSSH2_TERM_HEIGHT.int
     ) async -> Bool {
@@ -77,7 +77,7 @@ public extension Shell {
     }
 
     /// 动态调整终端窗口大小（通常在 App 窗口尺寸变化时调用）
-    func requestPtySize(width: Int, height: Int) async -> Bool {
+    public func requestPtySize(width: Int, height: Int) async -> Bool {
         guard rawChannel != nil else { return false }
         let code = await channel.ssh.callSSH2 { [self] in
             libssh2_channel_request_pty_size_ex(
@@ -88,7 +88,7 @@ public extension Shell {
     }
 
     /// 设置环境变量
-    func setEnv(name: String, value: String) async -> Bool {
+    public func setEnv(name: String, value: String) async -> Bool {
         guard rawChannel != nil else { return false }
         let code = await channel.ssh.callSSH2 { [self] in
             libssh2_channel_setenv_ex(
@@ -99,12 +99,12 @@ public extension Shell {
     }
 
     /// 向 Shell 写入二进制数据
-    func write(data: Data) async -> Bool {
+    public func write(data: Data) async -> Bool {
         await write(data: .init(data: data), size: data.count)
     }
 
     /// 通过流向 Shell 写入数据
-    func write(data: InputStream, size: Int) async -> Bool {
+    public func write(data: InputStream, size: Int) async -> Bool {
         guard rawChannel != nil else { return false }
         let code = await io.Copy(
             data, channel.write,
@@ -127,33 +127,47 @@ public extension Shell {
 
             let data: Buffer<CChar> = .init(channel.ssh.bufferSize)
 
-            var rc, revents: Int32
+            var rc: Int32
+            var revents: Int32
             var n: Int
-            while running, !channel.ssh.isClose {
+            while running, !channel.ssh.close {
                 guard rawChannel != nil, !channel.receivedEOF else {
                     break
                 }
                 rc = libssh2_poll(&poll, 1, 10)
-                if rc < 1 {
-                    continue
+
+                if rc < 0 {
+                    break
                 }
-                revents = poll.revents.int32
-                // 处理标准输出 (stdout)
+
+                let revents = poll.revents.int32
+
+                // 1. 处理标准输出
                 if (revents & LIBSSH2_POLLFD_POLLIN) != 0 {
-                    n = libssh2_channel_read_ex(rawChannel, 0, data.buffer, data.count)
+                    let n = libssh2_channel_read_ex(rawChannel, 0, data.buffer, data.count)
                     if n > 0 {
-                        onStdout(.init(bytes: data.buffer, count: n))
+                        output.write(data.buffer, maxLength: n)
+                    } else if n != LIBSSH2_ERROR_EAGAIN {
+                        // 读取到 EOF (0) 或严重错误，考虑退出
+                        if n <= 0 { break }
                     }
                 }
-                // 处理标准错误 (stderr/ext)
+
+                // 2. 处理标准错误
                 if (revents & LIBSSH2_POLLFD_POLLEXT) != 0 {
-                    n = libssh2_channel_read_ex(rawChannel, 1, data.buffer, data.count)
+                    let n = libssh2_channel_read_ex(rawChannel, 1, data.buffer, data.count)
                     if n > 0 {
-                        onStderr(.init(bytes: data.buffer, count: n))
+                        outerr.write(data.buffer, maxLength: n)
                     }
                 }
-                // 检查渠道是否已关闭
-                if (revents & LIBSSH2_POLLFD_CHANNEL_CLOSED) != 0 {
+
+                // 3. 核心退出条件：检查连接是否关闭
+                if (revents & (LIBSSH2_POLLFD_CHANNEL_CLOSED | LIBSSH2_POLLFD_SESSION_CLOSED)) != 0
+                {
+                    break
+                }
+
+                if libssh2_channel_eof(rawChannel) != 0 {
                     break
                 }
             }
@@ -180,7 +194,7 @@ public extension Shell {
     }
 
     /// 关闭 Shell 会话并释放关联资源
-    func closeShell() {
+    public func closeShell() {
         running = false
         wait.wait()
         if channel.sendEof() {
