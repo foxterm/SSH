@@ -53,7 +53,7 @@ let package = Package(
                 .product(
                     name: "openssl-apple",
                     package: "openssl-apple",
-                    moduleAliases: ["openssl-apple": "OpenSSL"]
+                    moduleAliases: ["openssl": "OpenSSL"]
                 ),
                 .product(name: "CSSH2", package: "libssh2"),
             ]
