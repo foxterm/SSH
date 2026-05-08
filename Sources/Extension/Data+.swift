@@ -143,7 +143,7 @@ public extension Data {
         }
         return nil
     }
-    
+
     var hex: [String] {
         map { String(format: "%02hhX", $0) }
     }
