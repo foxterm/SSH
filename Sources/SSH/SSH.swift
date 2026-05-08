@@ -68,7 +68,7 @@ public class SSH {
     public var scale: Int32 = 0
 
     /// 数据传输缓冲区大小，默认 64K
-    public var bufferSize = 0x10000 // 64K
+    public var bufferSize = 0x10000  // 64K
 
     /// 记录最近一次发生的错误描述
     public internal(set) var error: String?
@@ -85,11 +85,6 @@ public class SSH {
 
     /// 指向 libssh2_session 的原始 C 指针
     public internal(set) var rawSession: OpaquePointer?
-    /// 是否处于 SSL/TLS 加密层之上（在使用代理时）
-    public internal(set) var isSSL: Bool = false
-
-    /// libetos 维护的 SSL 上下文指针
-    public internal(set) var ssl: OpaquePointer?
 
     /// 任务执行队列，默认关联到主队列执行 UI 相关的回调
     let job: OperationQueue = .main
@@ -140,9 +135,9 @@ public class SSH {
     }
 }
 
-public extension SSH {
+extension SSH {
     /// 完整关闭流程：释放会话资源并断开 Socket 连接
-    func close() {
+    public func close() {
         freeSession()
         closeSocket()
         #if DEBUG
