@@ -5,6 +5,7 @@
 #include <string.h>
 #include <openssl/bio.h>
 #include <openssl/buffer.h>
+#include <openssl/evp.h>
 // --- 跨平台头文件和定义 ---
 #ifdef _WIN32
 #include <mstcpip.h>
