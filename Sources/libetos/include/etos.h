@@ -1,6 +1,6 @@
 #ifndef ETOS_H
 #define ETOS_H
-
+#include <openssl/opensslv.h>
 #include <openssl/ssl.h>
 #include <stdbool.h>
 
