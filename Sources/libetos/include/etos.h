@@ -148,20 +148,6 @@ int64_t etos_sync_atomic_exchange(volatile int64_t *addr, int64_t value);
 int64_t etos_sync_atomic_cas(volatile int64_t *addr, int64_t expected,
                              int64_t desired);
 
-/* ------------------------------------------------------------
-   BIP39 助记词生成
-   ------------------------------------------------------------ */
-
-/** 生成助记词 */
-int etos_bip39_generate(int strength, char *out_mnemonic, size_t out_max_len);
-
-/** 验证助记词 */
-int etos_bip39_validate(const char *mnemonic);
-
-/** 助记词转种子 */
-int etos_bip39_mnemonic_to_seed(const char *mnemonic, const char *passphrase,
-                                unsigned char *out_seed);
-
 #ifdef __cplusplus
 }
 #endif
