@@ -1,5 +1,4 @@
 #include "etos.h"
-#include "ssl.h"
 #include <errno.h>
 #include <stdbool.h>
 #include <stdio.h>
@@ -156,9 +155,7 @@ SOCKET etos_socket_connect(const char *host, int port, int timeout_ms, int ttl,
 SOCKET etos_socket_connect_proxy(int type, const char *proxy_host,
                                  int proxy_port, int timeout_ms,
                                  const char *target_host, int target_port,
-                                 const char *user, const char *password,
-                                 bool ssl_verify, const char *sni_host,
-                                 SSL **out_ssl) {
+                                 const char *user, const char *password) {
 
   // 1. 物理连接
   SOCKET fd = etos_socket_connect(proxy_host, proxy_port, timeout_ms, 0, 0, 0);
@@ -232,7 +229,7 @@ SOCKET etos_socket_connect_proxy(int type, const char *proxy_host,
     }
   }
   // --- HTTP / HTTPS CONNECT ---
-  else if (type == ETOS_PROXY_HTTP || type == ETOS_PROXY_HTTPS) {
+  else if (type == ETOS_PROXY_HTTP) {
     char buf[2048], auth_line[1024] = "";
     if (user && password) {
       char creds[512];
@@ -262,31 +259,6 @@ SOCKET etos_socket_connect_proxy(int type, const char *proxy_host,
       }
     }
 
-    // 如果是 HTTPS 且打通了隧道，则进行 SSL 握手
-    if (success && type == ETOS_PROXY_HTTPS && out_ssl) {
-      if (!g_etos_ssl_ctx) {
-        success = 0;
-        goto failed;
-      }
-      *out_ssl = SSL_new(g_etos_ssl_ctx);
-      if (*out_ssl) {
-        const char *final_sni =
-            (sni_host && strlen(sni_host) > 0) ? sni_host : target_host;
-        SSL_set_fd(*out_ssl, (int)fd);
-        SSL_set_tlsext_host_name(*out_ssl, final_sni);
-        if (ssl_verify) {
-          SSL_set_verify(*out_ssl, SSL_VERIFY_PEER, NULL);
-          X509_VERIFY_PARAM_set1_host(SSL_get0_param(*out_ssl), final_sni, 0);
-        } else {
-          SSL_set_verify(*out_ssl, SSL_VERIFY_NONE, NULL);
-        }
-        if (SSL_connect(*out_ssl) <= 0)
-          success = 0;
-        else if (ssl_verify && SSL_get_verify_result(*out_ssl) != X509_V_OK)
-          success = 0;
-      } else
-        success = 0;
-    }
   }
 
 failed:
@@ -410,16 +382,6 @@ ssize_t etos_socket_recv(SOCKET fd, char *buf, ssize_t len, int flags) {
   return rc;
 }
 
-// --- HTTPS 发送数据 (OpenSSL) ---
-ssize_t etos_socket_ssl_send(SSL *ssl, const char *buf, ssize_t len,
-                             int flags) {
-  return etos_ssl_send(ssl, buf, len, flags);
-}
-
-// --- HTTPS 接收数据 (OpenSSL) ---
-ssize_t etos_socket_ssl_recv(SSL *ssl, char *buf, ssize_t len, int flags) {
-  return etos_ssl_recv(ssl, buf, len, flags);
-}
 // 判断 Socket FD 当前是否处于正常连接状态
 bool etos_socket_is_connect(SOCKET fd) {
   if (fd == INVALID_SOCKET_VAL || fd <= 0)
