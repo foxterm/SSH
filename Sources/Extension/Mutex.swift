@@ -7,7 +7,7 @@ import libetos
 
 /// 互斥锁类，基于 libetos 提供的底层同步原语实现
 /// 用于在多线程环境下保护共享资源（如 SSH 会话指针）
-public class Mutex {
+public final class Mutex: @unchecked Sendable {
     /// 全局共享的互斥锁实例（单例）
     public static let shared: Mutex = .init()
 
