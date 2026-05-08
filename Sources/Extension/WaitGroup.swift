@@ -7,7 +7,7 @@ import libetos
 
 /// 等待组类，提供一种同步机制，用于等待多个并发任务全部完成
 /// 类似于 Go 语言中的 sync.WaitGroup
-public class WaitGroup {
+public final class WaitGroup: Sendable {
     /// 全局共享的等待组实例
     public static let shared: WaitGroup = .init()
 
