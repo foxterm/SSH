@@ -1,4 +1,4 @@
-// swift-tools-version:6.0
+// swift-tools-version:5.10
 
 import PackageDescription
 
@@ -39,7 +39,7 @@ let package = Package(
         .target(
             name: "Extension",
             dependencies: [
-                .target(name: "libetos"),
+                .target(name: "libetos")
             ]
         ),
         .target(
