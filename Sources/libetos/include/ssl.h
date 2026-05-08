@@ -1,5 +1,6 @@
 #ifndef ETOS_SSL_H
 #define ETOS_SSL_H
+#include <openssl/opensslv.h>
 #include <openssl/bio.h>
 #include <openssl/buffer.h>
 #include <openssl/evp.h>
