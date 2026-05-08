@@ -49,5 +49,6 @@ let package = Package(
                 .product(name: "CSSH2", package: "libssh2"),
             ]
         ),
-    ]
+    ],
+    swiftLanguageVersions: [.v5]
 )
