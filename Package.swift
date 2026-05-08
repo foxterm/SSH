@@ -16,8 +16,8 @@ let package = Package(
     ],
     dependencies: [
         .package(
-            url: "https://github.com/partout-io/openssl-apple.git",
-            .upToNextMinor(from: "3.6.2")
+            url: "https://github.com/krzyzanowskim/OpenSSL.git",
+            .upToNextMinor(from: "3.6.0001")
         ),
         .package(url: "https://github.com/foxterm/libssh2.git", branch: "main"),
     ],
@@ -26,11 +26,7 @@ let package = Package(
             name: "Crypto",
             dependencies: [
                 .target(name: "Extension"),
-                .product(
-                    name: "openssl-apple",
-                    package: "openssl-apple",
-                    moduleAliases: ["openssl": "OpenSSL"]
-                ),
+                .product(name: "OpenSSL", package: "OpenSSL"),
             ]
         ),
         .target(
@@ -50,11 +46,7 @@ let package = Package(
         .target(
             name: "libetos",
             dependencies: [
-                .product(
-                    name: "openssl-apple",
-                    package: "openssl-apple",
-                    moduleAliases: ["openssl": "OpenSSL"]
-                ),
+                .product(name: "OpenSSL", package: "OpenSSL"),
                 .product(name: "CSSH2", package: "libssh2"),
             ]
         ),
