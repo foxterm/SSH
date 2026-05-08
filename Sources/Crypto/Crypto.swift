@@ -5,7 +5,7 @@
 import Foundation
 import OpenSSL
 
-public class Crypto {
+public final class Crypto: Sendable {
     public static let shared: Crypto = .init()
     public static let openssl_version = OPENSSL_VERSION_STR
 }
