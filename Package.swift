@@ -29,7 +29,7 @@ let package = Package(
                 .product(
                     name: "openssl-apple",
                     package: "openssl-apple",
-                    moduleAliases: ["openssl-apple": "OpenSSL"]
+                    moduleAliases: ["openssl": "OpenSSL"]
                 ),
             ]
         ),
