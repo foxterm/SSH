@@ -15,10 +15,7 @@ let package = Package(
         .library(name: "libetos", targets: ["libetos"]),
     ],
     dependencies: [
-        .package(
-            url: "https://github.com/foxterm/OpenSSL.git",
-            .upToNextMinor(from: "3.6.2")
-        ),
+        .package(url: "https://github.com/foxterm/OpenSSL.git", branch: "main"),
         .package(url: "https://github.com/foxterm/libssh2.git", branch: "main"),
     ],
     targets: [
