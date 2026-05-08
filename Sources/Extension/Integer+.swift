@@ -88,5 +88,4 @@ public extension Int64 {
     var byteFormatterDecimal: String {
         ByteCountFormatter.string(fromByteCount: self, countStyle: .decimal)
     }
-    
 }
