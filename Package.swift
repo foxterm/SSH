@@ -27,9 +27,9 @@ let package = Package(
             dependencies: [
                 .target(name: "Extension"),
                 .product(
-                    name: "openssl",
+                    name: "openssl-apple",
                     package: "openssl-apple",
-                    moduleAliases: ["openssl": "OpenSSL"]
+                    moduleAliases: ["openssl-apple": "OpenSSL"]
                 ),
             ]
         ),
@@ -51,9 +51,9 @@ let package = Package(
             name: "libetos",
             dependencies: [
                 .product(
-                    name: "openssl",
+                    name: "openssl-apple",
                     package: "openssl-apple",
-                    moduleAliases: ["openssl": "OpenSSL"]
+                    moduleAliases: ["openssl-apple": "OpenSSL"]
                 ),
                 .product(name: "CSSH2", package: "libssh2"),
             ]
