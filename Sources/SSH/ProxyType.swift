@@ -71,14 +71,6 @@ public struct ProxyInfo {
         self.password = password
     }
 
-    public var ssl: OpaquePointer? {
-        if type == .https {
-            etos_ssl_init()
-            return etos_new_ssl()
-        }
-        return nil
-    }
-
     // public var isSSL: Bool {
     //     type == .https
     // }
