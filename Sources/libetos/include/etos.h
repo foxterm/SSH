@@ -1,7 +1,8 @@
 #ifndef ETOS_H
 #define ETOS_H
 #include <stdbool.h>
-
+#include <sys/types.h>
+#include <unistd.h>
 #ifdef __cplusplus
 extern "C" {
 #endif
