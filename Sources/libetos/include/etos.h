@@ -1,7 +1,5 @@
 #ifndef ETOS_H
 #define ETOS_H
-#include <openssl/opensslv.h>
-#include <openssl/ssl.h>
 #include <stdbool.h>
 
 #ifdef __cplusplus
@@ -23,7 +21,7 @@ void etos_cleanup(void);
 
 #define ETOS_PROXY_SOCKS5 1
 #define ETOS_PROXY_HTTP 2
-#define ETOS_PROXY_HTTPS 3
+// #define ETOS_PROXY_HTTPS 3
 
 /* ------------------------------------------------------------
    网络 I/O 服务
@@ -37,9 +35,7 @@ SOCKET etos_socket_connect(const char *host, int port, int timeout_ms, int ttl,
 SOCKET etos_socket_connect_proxy(int type, const char *proxy_host,
                                  int proxy_port, int timeout_ms,
                                  const char *target_host, int target_port,
-                                 const char *user, const char *password,
-                                 bool ssl_verify, const char *sni_host,
-                                 SSL **out_ssl);
+                                 const char *user, const char *password);
 
 /** 关闭传输通道 */
 int etos_socket_shutdown(SOCKET fd, int how);
@@ -62,11 +58,6 @@ ssize_t etos_socket_send(SOCKET fd, const char *buf, ssize_t len, int flags);
 /** 接收原始数据 */
 ssize_t etos_socket_recv(SOCKET fd, char *buf, ssize_t len, int flags);
 
-/** 发送 SSL 加密数据 */
-ssize_t etos_socket_ssl_send(SSL *ssl, const char *buf, ssize_t len, int flags);
-
-/** 接收 SSL 加密数据 */
-ssize_t etos_socket_ssl_recv(SSL *ssl, char *buf, ssize_t len, int flags);
 
 /** 获取最后一次网络错误码 */
 int etos_socket_last_error(void);
