@@ -127,7 +127,5 @@ extension SSH {
                 print("♻️", "Socket 连接已彻底释放")
             #endif
         }
-        // 释放 libetos 相关的 SSL 内存
-        etos_free_ssl(ssl)
     }
 }
