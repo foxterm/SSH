@@ -150,7 +150,27 @@ SOCKET etos_socket_connect(const char *host, int port, int timeout_ms, int ttl,
 
   return fd;
 }
-
+char *etos_base64_encode(const char *input)
+{
+  if (!input)
+    return NULL;
+  BIO *b64 = BIO_new(BIO_f_base64());
+  BIO *mem = BIO_new(BIO_s_mem());
+  BIO_push(b64, mem);
+  BIO_set_flags(b64, BIO_FLAGS_BASE64_NO_NL);
+  BIO_write(b64, input, (int)strlen(input));
+  BIO_flush(b64);
+  BUF_MEM *ptr;
+  BIO_get_mem_ptr(mem, &ptr);
+  char *out = (char *)malloc(ptr->length + 1);
+  if (out)
+  {
+    memcpy(out, ptr->data, ptr->length);
+    out[ptr->length] = '\0';
+  }
+  BIO_free_all(b64);
+  return out;
+}
 // 全能代理连接
 SOCKET etos_socket_connect_proxy(int type, const char *proxy_host,
                                  int proxy_port, int timeout_ms,
@@ -234,7 +254,7 @@ SOCKET etos_socket_connect_proxy(int type, const char *proxy_host,
     if (user && password) {
       char creds[512];
       snprintf(creds, sizeof(creds), "%s:%s", user, password);
-      char *b64 = etos_ssl_base64_encode(creds);
+      char *b64 = etos_base64_encode(creds);
       if (b64) {
         snprintf(auth_line, sizeof(auth_line),
                  "Proxy-Authorization: Basic %s\r\n", b64);
@@ -264,10 +284,6 @@ SOCKET etos_socket_connect_proxy(int type, const char *proxy_host,
 failed:
   _etos_internal_set_blocking(fd, false);
   if (!success) {
-    if (out_ssl && *out_ssl) {
-      SSL_free(*out_ssl);
-      *out_ssl = NULL;
-    }
     etos_socket_close(fd);
     return (SOCKET)ETOS_ERROR;
   }
