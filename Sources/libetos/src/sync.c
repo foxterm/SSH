@@ -1,4 +1,5 @@
 #include "etos.h"
+#include <stdlib.h>
 #include <stdatomic.h>
 
 // ---------------------------------------------------------
