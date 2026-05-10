@@ -47,7 +47,7 @@ public extension Shell {
         term: String = "xterm-256color", width: Int = LIBSSH2_TERM_WIDTH.int,
         height: Int = LIBSSH2_TERM_HEIGHT.int
     ) async -> Bool {
-        guard channel.newSession() else { return false }
+        guard await channel.newSession() else { return false }
 
         // 设置渠道为非阻塞模式，以便进行轮询
         libssh2_channel_set_blocking(rawChannel, 0)
