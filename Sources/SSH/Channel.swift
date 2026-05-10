@@ -31,9 +31,7 @@ public extension Channel {
     }
 
     func newSession() async -> Bool {
-        if rawChannel != nil {
-            closeChannel()
-        }
+        closeChannel()
         rawChannel = await ssh.callSSH2 { [self] in
             libssh2_channel_open_ex(rawSession, "session", 7, 0x200000, 0x8000, nil, 0)
         }
@@ -66,7 +64,7 @@ public extension Channel {
     ///   - max: 最大读取限制
     /// - Returns: 是否成功启动并完成执行
     func exec(
-        _ command: String, output: OutputStream, outerr: OutputStream, max: Int = 0
+        _ command: String, output: OutputStream, outerr: OutputStream, max _: Int = 0
     ) async -> Bool {
         guard await newSession() else {
             return false
@@ -75,7 +73,6 @@ public extension Channel {
             print("exec", command)
         #endif
 
-        // 设置为非阻塞模式，以便配合异步 I/O 复制
         libssh2_channel_set_blocking(rawChannel, 0)
 
         let startupCode = await ssh.callSSH2 { [self] in
@@ -89,31 +86,17 @@ public extension Channel {
             return false
         }
 
-        // 并发读取标准输出和标准错误
-        async let stdout = io.Copy(
-            output,
-            read,
-            ssh.bufferSize
-        ) { count in
-            max < 1 || count < max
-        }
-        async let stderr = io.Copy(
-            outerr,
-            readErr,
-            ssh.bufferSize
-        ) { count in
-            max < 1 || count < max
-        }
+        libssh2_channel_set_blocking(rawChannel, 0)
 
-        let (bytesRead, bytesReadError) = await (stdout, stderr)
-
-        // 如果读取过程中出现错误或已读取完成，则关闭通道
-        if bytesReadError > 0 {
-            closeChannel()
-            return false
-        }
+        await ssh.channelTask.register(
+            handle: rawChannel!,
+            output: output,
+            outerr: outerr,
+            write: nil
+        )
         closeChannel()
-        return bytesRead >= 0
+
+        return true
     }
 
     var read: InputStream {
@@ -199,7 +182,8 @@ public extension Channel {
 
     /// 安全关闭并释放通道资源
     func closeChannel() {
-        guard rawChannel != nil else { return }
+        guard let rawChannel else { return }
+        // ssh.channelTask.unregister(handle: rawChannel)
 
         // 尝试正常关闭并等待确认
         let rc = ssh.callSSH2 {
@@ -213,7 +197,7 @@ public extension Channel {
 
         // 强制释放指针
         libssh2_channel_free(rawChannel)
-        rawChannel = nil
+        self.rawChannel = nil
         #if DEBUG
             print("♻️", "Channel closed and freed safely")
         #endif
