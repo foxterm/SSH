@@ -173,8 +173,8 @@ extension ChannelTask {
 
     private func setupStreams(for task: SSHChannelTask) {
         if task.output.streamStatus == .notOpen { task.output.open() }
-        task.outerr?.open()
-        task.write?.open()
+        if task.outerr?.streamStatus == .notOpen { task.outerr?.open() }
+        if task.write?.streamStatus == .notOpen { task.write?.open() }
     }
 
     func remove(_ tasksToRemove: [OpaquePointer]) {
