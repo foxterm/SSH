@@ -117,25 +117,22 @@ public extension Shell {
         guard let rawChannel = rawChannel else { return }
         var createInStream: InputStream?
         var createOutStream: OutputStream?
-        Stream.getBoundStreams(withBufferSize: 0x10000, inputStream: &createInStream, outputStream: &createOutStream)
+        Stream.getBoundStreams(withBufferSize: channel.ssh.bufferSize, inputStream: &createInStream, outputStream: &createOutStream)
 
         writeInputStream = createInStream
         writeOutputStream = createOutStream
 
-        writeInputStream?.open()
         writeOutputStream?.open()
 
         readOutputStream = BlockOutputStream { [weak self] data in
             guard let self = self else { return }
             onStdout(data)
         }
-        readOutputStream?.open()
 
         errorOutputStream = BlockOutputStream { [weak self] data in
             guard let self = self else { return }
             onStderr(data)
         }
-        errorOutputStream?.open()
 
         guard let outStream = readOutputStream, let errStream = errorOutputStream else { return }
 
@@ -147,7 +144,6 @@ public extension Shell {
                 outerr: errStream,
                 write: writeInputStream
             )
-            // 当 register 的 continuation 被 resume 时，说明连接断开或异常退出
             #if DEBUG
                 print("⚠️", "ChannelTask 轮询已退出，正在关闭 Shell")
             #endif
