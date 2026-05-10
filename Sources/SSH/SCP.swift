@@ -44,7 +44,7 @@ public extension SCP {
         localPath: String,
         remotePath: String,
         mode: Int32 = 0o0644,
-        progress: @escaping (_ send: Int) -> Bool = { _ in true }
+        progress: @escaping (_ current: Int64, _ size: Int64) -> Bool = { _, _ in true }
     ) async -> Bool {
         guard let stream = InputStream(fileAtPath: localPath) else {
             return false
@@ -65,7 +65,7 @@ public extension SCP {
         data: Data,
         remotePath: String,
         mode: Int32 = 0o0644,
-        progress: @escaping (_ send: Int) -> Bool = { _ in true }
+        progress: @escaping (_ current: Int64, _ size: Int64) -> Bool = { _, _ in true }
     ) async -> Bool {
         await upload(
             stream: .init(data: data),
@@ -82,36 +82,35 @@ public extension SCP {
         size: Int64,
         remotePath: String,
         mode: Int32 = 0o0644,
-        progress: @escaping (_ send: Int) -> Bool = { _ in true }
+        progress: @escaping (_ current: Int64, _ size: Int64) -> Bool = { _, _ in true }
     ) async -> Bool {
-        // 如果通道被占用，先安全关闭
-        if rawChannel != nil {
-            channel.closeChannel()
-        }
-        guard rawSession != nil else {
-            return false
-        }
-        // 初始化 SCP 发送会话 (使用 64 位版本以支持 >2GB 文件)
+        if rawChannel != nil { channel.closeChannel() }
+        guard let rawSession = rawSession else { return false }
+
         channel.rawChannel = await channel.ssh.callSSH2 { [self] in
             libssh2_scp_send64(rawSession, remotePath, mode, size, 0, 0)
         }
-        guard rawChannel != nil else {
-            return false
-        }
+        guard let rawChannel = channel.rawChannel else { return false }
         libssh2_channel_set_blocking(rawChannel, 0)
 
-        // 执行 I/O 拷贝，校验读取字节数是否等于预设大小
-        let bytesSent = await io.Copy(
-            stream,
-            channel.write,
-            channel.ssh.bufferSize,
-            progress
-        )
+        var totalSent: Int64 = 0
+        let dummyOutput = OutputStream.toMemory()
 
-        guard bytesSent == size.int else {
-            _ = channel.sendEof()
-            channel.closeChannel()
-            return false
+        await channel.ssh.channelTask.register(
+            handle: rawChannel,
+            output: dummyOutput,
+            outerr: nil,
+            write: stream,
+            totalSize: size
+        ) { [weak self] (currentLoopBytes: Int64, total: Int64) -> Bool in
+            totalSent += currentLoopBytes
+
+            let continueTransfer = progress(totalSent, total)
+            if !continueTransfer {
+                // 如果用户取消了，顺手断开该通道
+                self?.channel.closeChannel()
+            }
+            return continueTransfer
         }
 
         _ = channel.sendEof()
@@ -127,7 +126,7 @@ public extension SCP {
     func download(
         localPath: String,
         remotePath: String,
-        progress: @escaping (_ send: Int, _ size: Int) -> Bool = { _, _ in true }
+        progress: @escaping (_ current: Int64, _ size: Int64) -> Bool = { _, _ in true }
     ) async -> Bool {
         guard let stream = OutputStream(toFileAtPath: localPath, append: false) else {
             return false
@@ -138,7 +137,7 @@ public extension SCP {
     /// 下载远程文件并返回 Data 内存数据
     func download(
         remotePath: String,
-        progress: @escaping (_ send: Int, _ size: Int) -> Bool = { _, _ in true }
+        progress: @escaping (_ current: Int64, _ size: Int64) -> Bool = { _, _ in true }
     ) async -> Data? {
         let stream = OutputStream.toMemory()
         guard await download(stream: stream, remotePath: remotePath, progress: progress) else {
@@ -151,44 +150,41 @@ public extension SCP {
     func download(
         stream: OutputStream,
         remotePath: String,
-        progress: @escaping (_ send: Int, _ size: Int) -> Bool = { _, _ in true }
+        progress: @escaping (_ current: Int64, _ size: Int64) -> Bool = { _, _ in true }
     ) async -> Bool {
-        if rawChannel != nil {
-            channel.closeChannel()
-        }
-        guard rawSession != nil else {
-            return false
-        }
+        if rawChannel != nil { channel.closeChannel() }
+        guard let rawSession = rawSession else { return false }
+
         var fileinfo = libssh2_struct_stat()
-        // 初始化 SCP 接收会话，获取文件元数据
         channel.rawChannel = await channel.ssh.callSSH2 { [self] in
             libssh2_scp_recv2(rawSession, remotePath, &fileinfo)
         }
-        guard rawChannel != nil else {
-            return false
-        }
+        guard let rawChannel = channel.rawChannel else { return false }
         libssh2_channel_set_blocking(rawChannel, 0)
 
-        let size = fileinfo.st_size.int
-        // 处理空文件情况
+        let size = fileinfo.st_size
         guard size > 0 else {
             channel.closeChannel()
             return true
         }
 
-        // 使用专用的 SCPOutputStream 处理接收
-        let rc = await io.Copy(
-            stream,
-            SCPInputStream(handle: rawChannel, ssh: channel.ssh, size: size),
-            channel.ssh.bufferSize
-        ) { send in
-            progress(send, size)
+        var totalReceived: Int64 = 0
+        await channel.ssh.channelTask.register(
+            handle: rawChannel,
+            output: stream,
+            outerr: nil,
+            write: nil,
+            totalSize: size
+        ) { [weak self] (currentLoopBytes: Int64, _: Int64) -> Bool in
+            totalReceived += currentLoopBytes
+
+            let continueTransfer = progress(totalReceived, size)
+            if !continueTransfer {
+                self?.channel.closeChannel()
+            }
+            return continueTransfer
         }
 
-        guard rc == size else {
-            channel.closeChannel()
-            return false
-        }
         channel.closeChannel()
         return true
     }
