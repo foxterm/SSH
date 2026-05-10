@@ -29,6 +29,7 @@ public extension Job {
     }
 
     /// 同步将操作添加到队列中，阻塞当前调用线程直到操作完成
+    /// - 参数 callback：包含要执行的操作的闭包。 
     func addSyncOperation(_ callback: @escaping () -> Void) {
         let operation = BlockOperation {
             callback()
