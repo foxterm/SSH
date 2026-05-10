@@ -57,8 +57,8 @@ public class io {
         _ progress: @escaping (_ send: Int) -> Bool = { _ in true }
     ) -> Int {
         // 确保流在操作前开启
-        w.open()
-        r.open()
+        if r.streamStatus == .notOpen { r.open() }
+        if w.streamStatus == .notOpen { w.open() }
         defer {
             // 操作完成后确保流已关闭，释放资源
             w.close()
