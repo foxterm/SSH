@@ -185,7 +185,7 @@ public extension Channel {
     /// 安全关闭并释放通道资源
     func closeChannel() {
         guard let rawChannel else { return }
-        // ssh.channelTask.unregister(handle: rawChannel)
+        ssh.channelTask.unregister(handle: rawChannel)
 
         // 尝试正常关闭并等待确认
         let rc = ssh.callSSH2 {
