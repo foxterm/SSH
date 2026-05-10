@@ -67,6 +67,7 @@ public extension SSH {
             freeSession()
             return false
         }
+        channelTask.socketFD = fd
         return true
     }
 
