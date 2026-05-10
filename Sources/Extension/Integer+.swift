@@ -27,6 +27,10 @@ public extension FixedWidthInteger {
         }
     }
 
+    var int16: Int16 {
+        Int16(self)
+    }
+
     var int32: Int32 {
         Int32(self)
     }
