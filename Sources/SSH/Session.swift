@@ -101,29 +101,34 @@ public extension SSH {
         }
         let nh = libssh2_knownhost_init(rawSession)
         defer { libssh2_knownhost_free(nh) }
-        let typeMask = LIBSSH2_KNOWNHOST_TYPE_PLAIN |
-            LIBSSH2_KNOWNHOST_KEYENC_RAW |
-            (Int32(type + 1) << 18)
+        let typeMask =
+            LIBSSH2_KNOWNHOST_TYPE_PLAIN | LIBSSH2_KNOWNHOST_KEYENC_RAW | (Int32(type + 1) << 18)
         var store: UnsafeMutablePointer<libssh2_knownhost>?
-        let addResult = libssh2_knownhost_addc(nh, host, nil,
-                                               keyBytes, len,
-                                               nil, 0,
-                                               typeMask, &store)
+        let addResult = libssh2_knownhost_addc(
+            nh, host, nil,
+            keyBytes, len,
+            nil, 0,
+            typeMask, &store
+        )
 
         guard addResult == 0, let storePointer = store else { return nil }
 
         var initialOutLen = 0
         var dummyBuffer = [Int8](repeating: 0, count: 1)
 
-        _ = libssh2_knownhost_writeline(nh, storePointer, &dummyBuffer, 1, &initialOutLen, LIBSSH2_KNOWNHOST_FILE_OPENSSH)
+        _ = libssh2_knownhost_writeline(
+            nh, storePointer, &dummyBuffer, 1, &initialOutLen, LIBSSH2_KNOWNHOST_FILE_OPENSSH
+        )
 
         let buffer: Buffer<CChar> = .init(initialOutLen)
 
         var outLen = 0
 
-        let writeResult = libssh2_knownhost_writeline(nh, storePointer,
-                                                      buffer.buffer, bufferSize, &outLen,
-                                                      LIBSSH2_KNOWNHOST_FILE_OPENSSH)
+        let writeResult = libssh2_knownhost_writeline(
+            nh, storePointer,
+            buffer.buffer, bufferSize, &outLen,
+            LIBSSH2_KNOWNHOST_FILE_OPENSSH
+        )
 
         if writeResult == 0 {
             let fullLine = buffer.buffer.string.trim
@@ -229,7 +234,7 @@ public extension SSH {
     }
 
     /// 获取端口转发组件
-    var forward: Forward {
+    var direct: Direct {
         .init(channel: channel)
     }
 
