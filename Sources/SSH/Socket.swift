@@ -3,6 +3,7 @@
 // Created by foxterm@foxmail.com
 
 import CSSH2
+import Darwin
 import Extension
 import Foundation
 import libetos
