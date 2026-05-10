@@ -88,8 +88,6 @@ public class SSH {
     /// 指向 libssh2_session 的原始 C 指针
     public internal(set) var rawSession: OpaquePointer?
 
-    /// 任务执行队列，默认关联到主队列执行 UI 相关的回调
-    let job: OperationQueue = .main
     /// Keepalive 心跳包定时器
     var timer: DispatchSourceTimer?
 
