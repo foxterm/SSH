@@ -84,30 +84,25 @@ public extension SSH {
     }
 
     /// 等待套接字就绪（配合 libssh2 的非阻塞 IO）
-    /// 当 libssh2 返回 EAGAIN 时，调用此方法根据阻塞方向进行 poll 等待
     func waitSocket() -> Bool {
         guard rawSession != nil else {
             return false
         }
-        // 获取 libssh2 期望的等待方向（读或写）
+
+        // 获取 libssh2 期望的等待方向
         let dir = libssh2_session_block_directions(rawSession)
 
-        var poll = LIBSSH2_POLLFD()
-        poll.type = LIBSSH2_POLLFD_SOCKET.uint8
-        poll.fd.socket = fd
-        poll.events = 0
-
-        // 监听入站数据
-        if (dir & LIBSSH2_SESSION_BLOCK_INBOUND) != 0 {
-            poll.events |= LIBSSH2_POLLFD_POLLPRI.uint
-        }
-        // 监听出站缓冲区空间
-        if (dir & LIBSSH2_SESSION_BLOCK_OUTBOUND) != 0 {
-            poll.events |= LIBSSH2_POLLFD_POLLOUT.uint
+        // 如果没有任何方向需要等待，说明不需要阻塞，直接返回 true 驱动下一步
+        if dir == 0 {
+            return true
         }
 
-        // 执行极短时间的轮询以避免过度占用 CPU
-        return libssh2_poll(&poll, 1, 10) >= 0
+        // 彻底废弃 poll 避免闪退，直接休眠 10 毫秒（10,000 微秒）
+        // 这会将当前线程的 CPU 时间片让出，防止无脑空转
+        usleep(10000)
+
+        // 返回 true 让 libssh2 继续尝试执行下一步非阻塞操作
+        return true
     }
 
     /// 执行 Socket 半关闭操作
