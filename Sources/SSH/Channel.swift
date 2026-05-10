@@ -13,12 +13,6 @@ public class Channel {
     /// 所属的 SSH 实例
     let ssh: SSH
 
-    let mutex: Mutex = .init()
-    var running: Bool = false
-
-    var currentWriteOffset = 0
-    var waitData: [Data] = []
-
     init(ssh: SSH) {
         self.ssh = ssh
     }
@@ -134,93 +128,6 @@ public extension Channel {
         SSHOutputStream(handle: rawChannel, ssh: ssh, stream: .stdout)
     }
 
-    func write(data: Data) {
-        mutex.with {
-            waitData.append(data)
-        }
-    }
-
-    /// 等待通道数据到达或出错
-    func waitChannel(output: OutputStream, outerr: OutputStream) {
-        guard let rawChannel = rawChannel else { return }
-        running = true
-        var poll = LIBSSH2_POLLFD()
-        poll.type = LIBSSH2_POLLFD_CHANNEL.uint8
-        poll.fd.channel = rawChannel
-
-        let data: Buffer<CChar> = .init(ssh.bufferSize)
-        var rc: Int32
-        var revents: Int32
-        var n: Int
-        while rawChannel != nil, running {
-            poll.events = LIBSSH2_POLLFD_POLLIN.uint | LIBSSH2_POLLFD_POLLEXT.uint
-            poll.revents = 0
-            let hasData = mutex.with { !waitData.isEmpty }
-            if hasData {
-                poll.events |= LIBSSH2_POLLFD_POLLOUT.uint
-            }
-
-            rc = libssh2_poll(&poll, 1, 10)
-
-            if rc < 0 {
-                break
-            }
-
-            revents = poll.revents.int32
-
-            if (revents & LIBSSH2_POLLFD_POLLIN) != 0 {
-                n = libssh2_channel_read_ex(rawChannel, 0, data.buffer, data.count)
-                if n > 0 {
-                    output.write(data.buffer, maxLength: n)
-                } else if n < 0, n != LIBSSH2_ERROR_EAGAIN {
-                    break
-                }
-            }
-            if (revents & LIBSSH2_POLLFD_POLLEXT) != 0 {
-                n = libssh2_channel_read_ex(rawChannel, 1, data.buffer, data.count)
-                if n > 0 {
-                    outerr.write(data.buffer, maxLength: n)
-                } else if n < 0, n != LIBSSH2_ERROR_EAGAIN {
-                    break
-                }
-            }
-            if (revents & LIBSSH2_POLLFD_POLLOUT) != 0 {
-                let (dataToHandle, offset) = mutex.with { (waitData.first, currentWriteOffset) }
-
-                if let firstData = dataToHandle {
-                    n = firstData.withCPointer { ptr, count in
-                        let currentPtr = ptr.advanced(by: offset)
-                        let remaining = count - offset
-                        return libssh2_channel_write_ex(rawChannel, 0, currentPtr, remaining)
-                    }
-
-                    if n > 0 {
-                        mutex.with {
-                            currentWriteOffset += n
-                            if currentWriteOffset >= firstData.count {
-                                if !waitData.isEmpty { waitData.removeFirst() }
-                                currentWriteOffset = 0
-                            }
-                        }
-                    } else if n < 0, n != LIBSSH2_ERROR_EAGAIN {
-                        break
-                    }
-                }
-            }
-
-            if (revents & (LIBSSH2_POLLFD_CHANNEL_CLOSED | LIBSSH2_POLLFD_SESSION_CLOSED)) != 0 {
-                break
-            }
-
-            if libssh2_channel_eof(rawChannel) != 0 {
-                break
-            }
-        }
-        #if DEBUG
-            print("关闭轮询")
-        #endif
-    }
-
     /// 测试通道连通性
     func testEcho() async -> Bool {
         guard let data = await exec("echo \">TEST<\"", max: 7) else {
@@ -292,7 +199,6 @@ public extension Channel {
 
     /// 安全关闭并释放通道资源
     func closeChannel() {
-        running = false
         guard rawChannel != nil else { return }
 
         // 尝试正常关闭并等待确认
