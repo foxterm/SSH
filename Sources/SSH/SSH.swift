@@ -68,7 +68,7 @@ public class SSH {
     public var scale: Int32 = 0
 
     /// 数据传输缓冲区大小，默认 64K
-    public var bufferSize = 0x10000  // 64K
+    public var bufferSize = 0x10000 // 64K
 
     /// 记录最近一次发生的错误描述
     public internal(set) var error: String?
@@ -135,9 +135,9 @@ public class SSH {
     }
 }
 
-extension SSH {
+public extension SSH {
     /// 完整关闭流程：释放会话资源并断开 Socket 连接
-    public func close() {
+    func close() {
         freeSession()
         closeSocket()
         #if DEBUG
