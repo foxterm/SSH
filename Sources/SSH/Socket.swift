@@ -36,7 +36,6 @@ public extension SSH {
     }
 
     /// 内部数据发送方法
-    /// 根据当前连接模式（SSL 或普通 TCP）自动路由发送指令
     /// - Parameters:
     ///   - fd: 套接字句柄
     ///   - buffer: 待发送数据指针
@@ -54,7 +53,6 @@ public extension SSH {
     }
 
     /// 内部数据接收方法
-    /// 根据当前连接模式（SSL 或普通 TCP）自动路由接收指令
     /// - Parameters:
     ///   - fd: 套接字句柄
     ///   - buffer: 接收缓冲区指针
