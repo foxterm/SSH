@@ -31,8 +31,18 @@ class SSHOutputStream: OutputStream {
         }
     }
 
-    override func open() {}
-    override func close() {}
+    private var _streamStatus: Stream.Status = .notOpen
+    override func open() {
+        _streamStatus = .open
+    }
+
+    override func close() {
+        _streamStatus = .closed
+    }
+
+    override var streamStatus: Stream.Status {
+        _streamStatus
+    }
 
     /// 检查流是否可用
     override var hasSpaceAvailable: Bool {
@@ -64,8 +74,18 @@ class SSHInputStream: InputStream {
         }
     }
 
-    override func open() {}
-    override func close() {}
+    private var _streamStatus: Stream.Status = .notOpen
+    override func open() {
+        _streamStatus = .open
+    }
+
+    override func close() {
+        _streamStatus = .closed
+    }
+
+    override var streamStatus: Stream.Status {
+        _streamStatus
+    }
 
     /// 检查是否有数据可读
     override var hasBytesAvailable: Bool {
@@ -107,8 +127,18 @@ class SCPInputStream: InputStream {
         return nread
     }
 
-    override func open() {}
-    override func close() {}
+    private var _streamStatus: Stream.Status = .notOpen
+    override func open() {
+        _streamStatus = .open
+    }
+
+    override func close() {
+        _streamStatus = .closed
+    }
+
+    override var streamStatus: Stream.Status {
+        _streamStatus
+    }
 
     /// 只有在未达到预定大小且没有读取错误时才表示有数据
     override var hasBytesAvailable: Bool {
@@ -116,30 +146,36 @@ class SCPInputStream: InputStream {
     }
 }
 
-/// 管道输出流，将读取到的数据通过闭包（Callback）重定向
-/// 常用于实现自定义的数据处理逻辑，如内存缓存或实时日志解析
-class PipeOutputStream: OutputStream {
-    /// 数据到达时的回调，返回 Bool 决定是否继续接收数据
-    let callback: (Data) -> Bool
-    private var _ok: Bool = true
+class BlockOutputStream: OutputStream {
+    private let handler: (Data) -> Void
 
-    init(_ callback: @escaping (Data) -> Bool) {
-        self.callback = callback
-        super.init()
+    init(handler: @escaping (Data) -> Void) {
+        self.handler = handler
+        super.init(toMemory: ())
     }
 
-    /// 将写入流的数据包装成 Data 并分发给回调函数
-    override func write(_ buffer: UnsafePointer<UInt8>, maxLength len: Int) -> Int {
-        _ok = callback(.init(bytes: buffer, count: len))
-        // 如果回调返回 false，则返回 -1 表示流写入失败/中断
-        return _ok ? len : -1
+    private var _streamStatus: Stream.Status = .notOpen
+    override func open() {
+        _streamStatus = .open
     }
 
-    override func open() {}
-    override func close() {}
+    override func close() {
+        _streamStatus = .closed
+    }
 
-    /// 根据回调状态判断流是否还允许写入
+    override var streamStatus: Stream.Status {
+        _streamStatus
+    }
+
     override var hasSpaceAvailable: Bool {
-        _ok
+        true
+    }
+
+    override func write(_ buffer: UnsafePointer<UInt8>, maxLength len: Int) -> Int {
+        if len > 0 {
+            let data = Data(bytes: buffer, count: len)
+            handler(data)
+        }
+        return len
     }
 }
