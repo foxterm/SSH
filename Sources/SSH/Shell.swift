@@ -11,8 +11,12 @@ public class Shell {
     let wait: WaitGroup = .init()
     /// Shell 事件回调代理
     public var shellDelegate: ShellDelegate?
-    /// 用于轮询读取远程输出的专用串行队列，避免阻塞主线程
-    let queue: DispatchQueue = .global(qos: .userInteractive)
+
+    private var writeInputStream: InputStream?
+    private var writeOutputStream: OutputStream?
+    private var readOutputStream: OutputStream?
+    private var errorOutputStream: OutputStream?
+
     /// 关联的底层通信渠道
     let channel: Channel
 
@@ -71,7 +75,7 @@ public extension Shell {
 
         // 通知代理并开始轮询远程输出
         shellDelegate?.shell(shell: self)
-        pollShell()
+        setupStreamsAndRegister()
         return true
     }
 
@@ -99,24 +103,55 @@ public extension Shell {
 
     /// 向 Shell 写入二进制数据
     func write(data: Data) {
-        channel.write(data: data)
+        guard let outputStream = writeOutputStream, outputStream.hasSpaceAvailable else { return }
+        _ = data.withUnsafeBytes { (buffer: UnsafeRawBufferPointer) in
+            if let baseAddress = buffer.baseAddress?.assumingMemoryBound(to: UInt8.self) {
+                outputStream.write(baseAddress, maxLength: data.count)
+            }
+        }
     }
 
     /// 轮询 Shell 输出
     /// 在独立后台队列中运行，通过 libssh2_poll 监听读取事件
-    private func pollShell() {
-        libssh2_channel_set_blocking(rawChannel, 0)
-        queue.async { [self] in
-            wait.add()
-            channel.waitChannel(output: PipeOutputStream { data in
-                onStdout(data)
-                return true
-            }, outerr: PipeOutputStream { data in
-                onStderr(data)
-                return true
-            })
-            wait.done()
-            closeShell()
+    func setupStreamsAndRegister() {
+        guard let rawChannel = rawChannel else { return }
+        var createInStream: InputStream?
+        var createOutStream: OutputStream?
+        Stream.getBoundStreams(withBufferSize: 0x10000, inputStream: &createInStream, outputStream: &createOutStream)
+
+        writeInputStream = createInStream
+        writeOutputStream = createOutStream
+
+        writeInputStream?.open()
+        writeOutputStream?.open()
+
+        readOutputStream = BlockOutputStream { [weak self] data in
+            guard let self = self else { return }
+            onStdout(data)
+        }
+        readOutputStream?.open()
+
+        errorOutputStream = BlockOutputStream { [weak self] data in
+            guard let self = self else { return }
+            onStderr(data)
+        }
+        errorOutputStream?.open()
+
+        guard let outStream = readOutputStream, let errStream = errorOutputStream else { return }
+
+        // 异步注册到通道任务管理器中
+        Task {
+            await channel.ssh.channelTask.register(
+                handle: rawChannel,
+                output: outStream,
+                outerr: errStream,
+                write: writeInputStream
+            )
+            // 当 register 的 continuation 被 resume 时，说明连接断开或异常退出
+            #if DEBUG
+                print("⚠️", "ChannelTask 轮询已退出，正在关闭 Shell")
+            #endif
+            self.closeShell()
         }
     }
 
@@ -136,7 +171,10 @@ public extension Shell {
 
     /// 关闭 Shell 会话并释放关联资源
     func closeShell() {
-        channel.running = false
+        writeInputStream?.close()
+        writeOutputStream?.close()
+        readOutputStream?.close()
+        errorOutputStream?.close()
         wait.wait()
         if channel.sendEof() {
             channel.waitEOF()
