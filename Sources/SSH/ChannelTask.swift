@@ -103,8 +103,8 @@ extension ChannelTask {
             }
             if wantsRead { pollFd.events |= POLLIN.int16 | POLLPRI.int16 }
             if wantsWrite { pollFd.events |= POLLOUT.int16 }
-            var pollFds = [pollFd]
-            let pollRc = poll(&pollFds, 1, 10)
+
+            let pollRc = poll(&pollFd, 1, 10)
             if pollRc < 0 {
                 if errno != EINTR {
                     cleanupAll()
@@ -113,7 +113,7 @@ extension ChannelTask {
                 // cleanupAll()
                 continue
             }
-            let sysRevents = pollFds[0].revents
+            let sysRevents = pollFd.revents
             // 发生错误或挂断
             if (sysRevents & POLLERR.int16) != 0 || (sysRevents & POLLHUP.int16) != 0 {
                 cleanupAll()
