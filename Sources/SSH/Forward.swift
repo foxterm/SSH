@@ -7,7 +7,7 @@ import Extension
 import Foundation
 
 /// SSH 转发管理类，支持 TCP 端口转发及 Unix Domain Socket 转发
-public class Forward {
+public class Direct {
     /// 关联的通信通道
     let channel: Channel
 
@@ -22,7 +22,7 @@ public class Forward {
     }
 }
 
-extension Forward {
+extension Direct {
     /// 获取底层的 libssh2 通道指针
     var rawChannel: OpaquePointer? {
         channel.rawChannel
