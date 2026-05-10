@@ -120,12 +120,16 @@ extension ChannelTask {
                 break
             }
             // if pollRc == 0 { continue }
+            let isTimeout = pollRc == 0
+            let canRead = isTimeout || (sysRevents & (POLLIN.int16 | POLLPRI.int16)) != 0
+            let canWrite = isTimeout || (sysRevents & POLLOUT.int16) != 0
+
+            if !canRead, !canWrite {
+                continue
+            }
 
             var tasksToRemove = Set<OpaquePointer>()
             for task in currentTasks {
-                let canRead = pollRc == 0 || (sysRevents & (POLLIN.int16 | POLLPRI.int16)) != 0
-                let canWrite = pollRc == 0 || (sysRevents & POLLOUT.int16) != 0
-
                 var currentIncrement: Int64 = 0
                 var hasReadError = false
                 var hasWriteError = false
@@ -133,19 +137,19 @@ extension ChannelTask {
                 // 1. 先处理读取
                 if canRead {
                     let r = read(data: data, handle: task.handle, output: task.output, stream_id: 0)
-                    if r < 0 { hasReadError = true } else { currentIncrement += r }
+                    if r < 0 { if r != LIBSSH2_ERROR_EAGAIN { hasReadError = true } } else { currentIncrement += r }
                 }
 
                 // 2. 处理标准错误
                 if canRead, let outerr = task.outerr {
                     let r = read(data: data, handle: task.handle, output: outerr, stream_id: 1)
-                    if r < 0 { hasReadError = true } else { currentIncrement += r }
+                    if r < 0 { if r != LIBSSH2_ERROR_EAGAIN { hasReadError = true } } else { currentIncrement += r }
                 }
 
                 // 3. 处理写入
                 if canWrite {
                     let w = write(data: data, task: task)
-                    if w < 0 { hasWriteError = true } else { currentIncrement += w }
+                    if w < 0 { if w != LIBSSH2_ERROR_EAGAIN { hasWriteError = true }} else { currentIncrement += w }
                 }
 
                 // 4. 更新进度
