@@ -89,24 +89,17 @@ extension Direct {
 
     /// 在本地流与 SSH 通道之间进行双向数据拷贝
     func copy(read: InputStream, write: OutputStream) async {
-        guard rawChannel != nil else {
+        guard let rawChannel else {
             return
         }
-        // 并发处理双向流：
-        // 1. 远程 -> 本地 (stdout 作为数据负载)
-        async let toLocal = io.Copy(
-            write,
-            channel.read,
-            channel.ssh.bufferSize
+        if read.streamStatus == .notOpen { read.open() }
+        if write.streamStatus == .notOpen { write.open() }
+        await channel.ssh.channelTask.register(
+            handle: rawChannel,
+            output: write,
+            outerr: nil,
+            write: read
         )
-        // 2. 本地 -> 远程
-        async let toRemote = io.Copy(
-            read,
-            channel.write,
-            channel.ssh.bufferSize
-        )
-
-        _ = await (toLocal, toRemote)
         close()
     }
 
