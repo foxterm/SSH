@@ -259,7 +259,6 @@ public extension SSH {
     func freeSession() {
         mutex.withLock {
             guard rawSession != nil else { return }
-            job.cancelAllOperations()
             timer?.cancel()
             timer = nil
 
