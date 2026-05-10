@@ -14,7 +14,7 @@ import libetos
 public enum ProxyType: String, CaseIterable {
     case socks5
     case http
-    //case https
+    // case https
 
     public var portString: String {
         switch self {
