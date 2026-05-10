@@ -263,8 +263,6 @@ extension ChannelTask {
                 }
                 return written.int64
             } else if written == LIBSSH2_ERROR_EAGAIN {
-                // 🚨 核心修复：遇到 EAGAIN，说明一字节都没写进去。
-                // 把这次读出来的全部数据暂存进 writeBuffer，下次 POLLOUT 激活时再发，同时立刻返回 0 释放线程！
                 let rawData = UnsafeRawPointer(data.buffer).bindMemory(
                     to: UInt8.self, capacity: nread)
                 task.writeBuffer.append(
