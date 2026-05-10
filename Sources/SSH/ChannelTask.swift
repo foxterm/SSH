@@ -17,7 +17,11 @@ class SSHChannelTask {
     var onProgress: ((_ current: Int64, _ total: Int64) -> Bool)?
     var writeBuffer = [UInt8]()
 
-    init(handle: OpaquePointer, output: OutputStream, outerr: OutputStream?, write: InputStream?, continuation: CheckedContinuation<Void, Never>?, totalSize: Int64, onProgress: ((Int64, Int64) -> Bool)?) {
+    init(
+        handle: OpaquePointer, output: OutputStream, outerr: OutputStream?, write: InputStream?,
+        continuation: CheckedContinuation<Void, Never>?, totalSize: Int64,
+        onProgress: ((Int64, Int64) -> Bool)?
+    ) {
         self.handle = handle
         self.output = output
         self.outerr = outerr
@@ -29,7 +33,7 @@ class SSHChannelTask {
 }
 
 class ChannelTask {
-    let bufferSize = 0x10000 // 64K
+    let bufferSize = 0x10000  // 64K
     let queue = DispatchQueue(label: "app.foxterm.channeltask.queue")
     var _isLooping: Bool = false
     let mutex: Mutex = .init()
@@ -37,9 +41,11 @@ class ChannelTask {
 }
 
 extension ChannelTask {
-    func register(handle: OpaquePointer, output: OutputStream, outerr: OutputStream?, write: InputStream?, totalSize: Int64 = 0,
-                  progress: ((_ current: Int64, _ total: Int64) -> Bool)? = nil) async
-    {
+    func register(
+        handle: OpaquePointer, output: OutputStream, outerr: OutputStream?, write: InputStream?,
+        totalSize: Int64 = 0,
+        progress: ((_ current: Int64, _ total: Int64) -> Bool)? = nil
+    ) async {
         await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
             let task = SSHChannelTask(
                 handle: handle,
@@ -111,7 +117,7 @@ extension ChannelTask {
 
             for (index, task) in currentTasks.enumerated() {
                 let revents = poolls[index].revents.int32
-                if revents == 0 { continue } // 没有任何事件，跳过
+                if revents == 0 { continue }  // 没有任何事件，跳过
                 var currentIncrement: Int64 = 0
                 // A. 处理读取
                 if (revents & LIBSSH2_POLLFD_POLLIN) != 0 {
@@ -141,7 +147,8 @@ extension ChannelTask {
                 }
 
                 // 检查是否有关闭信号（这是防止闪退的关键判定）
-                let closeMask = Int32(LIBSSH2_POLLFD_CHANNEL_CLOSED) | Int32(LIBSSH2_POLLFD_SESSION_CLOSED)
+                let closeMask =
+                    Int32(LIBSSH2_POLLFD_CHANNEL_CLOSED) | Int32(LIBSSH2_POLLFD_SESSION_CLOSED)
                 if (revents & closeMask) != 0 {
                     tasksToRemove.insert(task.handle)
                     continue
@@ -202,11 +209,13 @@ extension ChannelTask {
         }
     }
 
-    func read(data: Buffer<CChar>, handle: OpaquePointer, output: OutputStream, stream_id: Int32) -> Int64 {
+    func read(data: Buffer<CChar>, handle: OpaquePointer, output: OutputStream, stream_id: Int32)
+        -> Int64
+    {
         let n = libssh2_channel_read_ex(handle, stream_id, data.buffer, data.count)
         if n > 0 {
             output.write(data.buffer, maxLength: n)
-            return n.int64 // 💡 显式强转成统一的 Int
+            return n.int64  // 💡 显式强转成统一的 Int
         } else if n == LIBSSH2_ERROR_EAGAIN {
             return 0
         } else {
@@ -214,7 +223,6 @@ extension ChannelTask {
         }
     }
 
-    /// 💡 注意：为了能修改 task 内部的 writeBuffer，我们需要传入 inout 类型的 task
     func write(data: Buffer<CChar>, task: SSHChannelTask) -> Int64 {
         // 1. 如果之前有残留未发完的数据，优先发送残留数据
         if !task.writeBuffer.isEmpty {
@@ -230,9 +238,9 @@ extension ChannelTask {
                     return rc.int64
                 }
             } else if rc == LIBSSH2_ERROR_EAGAIN {
-                return 0 // 缓冲区依然满，直接退回主循环，不卡死线程
+                return 0  // 缓冲区依然满，直接退回主循环，不卡死线程
             } else {
-                return -1 // 真正发生错误
+                return -1  // 真正发生错误
             }
         }
 
@@ -250,14 +258,17 @@ extension ChannelTask {
                     let leftCount = nread - written
                     let pointer = UnsafeRawPointer(data.buffer).advanced(by: written)
                     let leftData = pointer.bindMemory(to: UInt8.self, capacity: leftCount)
-                    task.writeBuffer.append(contentsOf: Array(UnsafeBufferPointer(start: leftData, count: leftCount)))
+                    task.writeBuffer.append(
+                        contentsOf: Array(UnsafeBufferPointer(start: leftData, count: leftCount)))
                 }
                 return written.int64
             } else if written == LIBSSH2_ERROR_EAGAIN {
                 // 🚨 核心修复：遇到 EAGAIN，说明一字节都没写进去。
                 // 把这次读出来的全部数据暂存进 writeBuffer，下次 POLLOUT 激活时再发，同时立刻返回 0 释放线程！
-                let rawData = UnsafeRawPointer(data.buffer).bindMemory(to: UInt8.self, capacity: nread)
-                task.writeBuffer.append(contentsOf: Array(UnsafeBufferPointer(start: rawData, count: nread)))
+                let rawData = UnsafeRawPointer(data.buffer).bindMemory(
+                    to: UInt8.self, capacity: nread)
+                task.writeBuffer.append(
+                    contentsOf: Array(UnsafeBufferPointer(start: rawData, count: nread)))
                 return 0
             } else {
                 return -1
