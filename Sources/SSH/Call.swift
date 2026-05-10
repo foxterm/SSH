@@ -95,14 +95,4 @@ extension SSH {
             print(Data(bytes: message, count: messageLen).string ?? "--")
         #endif
     }
-
-    /// 将任务添加到 SSH 的串行操作队列中执行
-    /// 常用于确保 UI 回调或状态更新在特定的后台任务队列（job）中按顺序执行
-    /// - Parameter callback: 待执行的闭包任务
-    func addOperation(_ callback: @escaping () -> Void) {
-        let operation = BlockOperation {
-            callback()
-        }
-        job.addOperation(operation)
-    }
 }
