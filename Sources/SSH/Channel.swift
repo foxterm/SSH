@@ -30,14 +30,12 @@ public extension Channel {
         ssh.rawSession
     }
 
-    func newSession() -> Bool {
-        ssh.mutex.with {
-            closeChannel()
-            rawChannel = ssh.callSSH2 { [self] in
-                libssh2_channel_open_ex(rawSession, "session", 7, 0x200000, 0x8000, nil, 0)
-            }
-            return rawChannel != nil
+    func newSession() async -> Bool {
+        closeChannel()
+        rawChannel = await ssh.callSSH2 { [self] in
+            libssh2_channel_open_ex(rawSession, "session", 7, 0x200000, 0x8000, nil, 0)
         }
+        return rawChannel != nil
     }
 
     /// 执行简单的 Shell 命令并直接返回结果 Data
@@ -68,7 +66,7 @@ public extension Channel {
     func exec(
         _ command: String, output: OutputStream, outerr: OutputStream, max: Int = 0
     ) async -> Bool {
-        guard newSession() else {
+        guard await newSession() else {
             return false
         }
         #if DEBUG
