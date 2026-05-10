@@ -28,6 +28,25 @@ public extension Job {
         }
     }
 
+    /// 同步将操作添加到队列中，阻塞当前调用线程直到操作完成
+    func addSyncOperation(_ callback: @escaping () -> Void) {
+        let operation = BlockOperation {
+            callback()
+        }
+        queue.addOperations([operation], waitUntilFinished: true)
+    }
+
+    /// 获取或设置队列的暂停状态
+    var isSuspended: Bool {
+        get { queue.isSuspended }
+        set { queue.isSuspended = newValue }
+    }
+
+    /// 获取当前队列中正在执行和等待执行的操作总数
+    var operationCount: Int {
+        queue.operationCount
+    }
+
     /// 取消作业队列中所有当前操作。
     func cancelAllOperations() {
         queue.cancelAllOperations()
