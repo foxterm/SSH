@@ -92,8 +92,6 @@ extension Direct {
         guard let rawChannel else {
             return
         }
-        if read.streamStatus == .notOpen { read.open() }
-        if write.streamStatus == .notOpen { write.open() }
         await channel.ssh.channelTask.register(
             handle: rawChannel,
             output: write,
