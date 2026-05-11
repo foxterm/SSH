@@ -34,6 +34,10 @@ class ChannelStream {
 
 class ChannelPoll {
     var socketFD: Int32 = -1
+    #if DEBUG
+        let sendSize: Atomic = .init()
+        let recvSize: Atomic = .init()
+    #endif
     var bufferSize = 0x10000
     let queue = DispatchQueue(label: "app.foxterm.channeltask.queue")
     var _isLooping: Bool = false
@@ -141,7 +145,12 @@ extension ChannelPoll {
                 if canRead {
                     mutex.with {
                         let r = read(data: data, handle: task.handle, output: task.output, stream_id: 0)
-                        if r < 0 { if r != LIBSSH2_ERROR_EAGAIN { hasReadError = true } } else { currentIncrement += r }
+                        if r < 0 { if r != LIBSSH2_ERROR_EAGAIN { hasReadError = true } } else {
+                            currentIncrement += r
+                            #if DEBUG
+                                recvSize.add(r)
+                            #endif
+                        }
                     }
                 }
 
@@ -149,7 +158,12 @@ extension ChannelPoll {
                 if canRead, let outerr = task.outerr {
                     mutex.with {
                         let r = read(data: data, handle: task.handle, output: outerr, stream_id: 1)
-                        if r < 0 { if r != LIBSSH2_ERROR_EAGAIN { hasReadError = true } } else { currentIncrement += r }
+                        if r < 0 { if r != LIBSSH2_ERROR_EAGAIN { hasReadError = true } } else {
+                            currentIncrement += r
+                            #if DEBUG
+                                recvSize.add(r)
+                            #endif
+                        }
                     }
                 }
 
@@ -157,7 +171,12 @@ extension ChannelPoll {
                 if canWrite {
                     mutex.with {
                         let w = write(data: data, task: task)
-                        if w < 0 { if w != LIBSSH2_ERROR_EAGAIN { hasWriteError = true }} else { currentIncrement += w }
+                        if w < 0 { if w != LIBSSH2_ERROR_EAGAIN { hasWriteError = true }} else {
+                            currentIncrement += w
+                            #if DEBUG
+                                sendSize.add(w)
+                            #endif
+                        }
                     }
                 }
 
