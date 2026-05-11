@@ -13,26 +13,7 @@ public class SSH {
     public static let version: String = LIBSSH2_VERSION
     /// 默认的 SSH Banner 标识，包含 libssh2 版本与 FoxTerm 应用版本
     public static let banner =
-        "SSH-2.0-libssh2_\(LIBSSH2_VERSION_MAJOR).\(LIBSSH2_VERSION_MINOR).\(LIBSSH2_VERSION_PATCH)-\(appName)_\(currentAppVersion)"
-    static var appName: String {
-        let info = Bundle.main.infoDictionary
-        if let displayName = info?["CFBundleDisplayName"] as? String {
-            return displayName
-        }
-        if let bundleName = info?[kCFBundleNameKey as String] as? String {
-            return bundleName
-        }
-        return ""
-    }
-
-    static var currentAppVersion: String {
-        #if os(macOS)
-            let infoDictionaryKey = "CFBundleShortVersionString"
-        #else
-            let infoDictionaryKey = "CFBundleVersion"
-        #endif
-        return Bundle.main.object(forInfoDictionaryKey: infoDictionaryKey) as? String ?? ""
-    }
+        "SSH-2.0-libssh2_\(LIBSSH2_VERSION_MAJOR).\(LIBSSH2_VERSION_MINOR).\(LIBSSH2_VERSION_PATCH)-\(Bundle.appName)_\(Bundle.currentAppVersion)"
 
     public let host: String
     public internal(set) var user: String = ""
