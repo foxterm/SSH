@@ -86,17 +86,17 @@ public class SSH {
     }
 
     /// 远程断开连接通知回调
-    let disconnectCallback: disconnectType = {
-        sess, reason, message, messageLen, language, languageLen, abstract in
-        abstract.ssh.disconnect(
-            sess: sess,
-            reason: reason,
-            message: message,
-            messageLen: messageLen,
-            language: language,
-            languageLen: languageLen
-        )
-    }
+//    let disconnectCallback: disconnectType = {
+//        sess, reason, message, messageLen, language, languageLen, abstract in
+//        abstract.ssh.disconnect(
+//            sess: sess,
+//            reason: reason,
+//            message: message,
+//            messageLen: messageLen,
+//            language: language,
+//            languageLen: languageLen
+//        )
+//    }
 
     /// 劫持 libssh2 的底层发送行为，路由到 libetos 处理 SSL 或流量统计
     let sendCallback: sendType = { fd, buffer, length, flags, abstract in
