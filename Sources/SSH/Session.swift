@@ -29,11 +29,11 @@ public extension SSH {
         #endif
 
         // 注册核心回调：断开连接、数据发送与接收
-//        libssh2_session_callback_set2(
-//            rawSession,
-//            LIBSSH2_CALLBACK_DISCONNECT,
-//            unsafeBitCast(disconnectCallback, to: cbGenericType.self)
-//        )
+        libssh2_session_callback_set2(
+            rawSession,
+            LIBSSH2_CALLBACK_DISCONNECT,
+            unsafeBitCast(disconnectCallback, to: cbGenericType.self)
+        )
         libssh2_session_callback_set2(
             rawSession,
             LIBSSH2_CALLBACK_SEND,
