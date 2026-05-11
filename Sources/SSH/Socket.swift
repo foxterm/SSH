@@ -71,41 +71,6 @@ public extension SSH {
         return size
     }
 
-    #if DEBUG
-        func printIsolationCompressionRatio() {
-            // 1. 获取原始的 Int64 数据
-            let rawSendBytes = sendSize.load
-            let rawRecvBytes = recvSize.load
-
-            let rawRowSendBytes = channelPoll.sendSize.load
-            let rawRowRecvBytes = channelPoll.recvSize.load
-
-            // 2. 将数据强转为 Double 类型，用于高精度浮点数计算
-            let send = Double(rawSendBytes)
-            let recv = Double(rawRecvBytes)
-
-            let rowSend = Double(rawRowSendBytes)
-            let rowRecv = Double(rawRowRecvBytes)
-
-            print("====== 独立连接压缩率精准分析 ======")
-
-            // 3. 计算发送端压缩率
-            if rawRowSendBytes > 0 {
-                let sendRatio = (send / rowSend) * 100.0
-                print(String(format: "发送端 (Output): 原始 %lld 字节 -> 物理发出 %lld 字节 [ 压缩至: %.2f%% ]", rawRowSendBytes, rawSendBytes, sendRatio))
-            } else {
-                print("发送端 (Output): 暂无业务数据发送。")
-            }
-
-            // 4. 计算接收端压缩率
-            if rawRowRecvBytes > 0 {
-                let recvRatio = (recv / rowRecv) * 100.0
-                print(String(format: "接收端 (Input) : 物理收到 %lld 字节 -> 原始还原 %lld 字节 [ 压缩至: %.2f%% ]", rawRecvBytes, rawRowRecvBytes, recvRatio))
-            } else {
-                print("接收端 (Input) : 暂无业务数据接收。")
-            }
-        }
-    #endif
     /// 检查 Socket 是否已关闭（句柄为 -1）
     var closed: Bool {
         fd == -1
