@@ -114,7 +114,7 @@ public extension SSH {
     func closeSocket() {
         // 先停止读取流
         shutdown(.read)
-        mutex.withLock {
+        channelPoll.mutex.with {
             etos_socket_close(fd)
             fd = -1
             #if DEBUG
