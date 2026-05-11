@@ -69,8 +69,8 @@ public class SSH {
     /// 指向 libssh2_session 的原始 C 指针
     public internal(set) var rawSession: OpaquePointer?
 
-    /// Keepalive 心跳包定时器
-    var timer: DispatchSourceTimer?
+    // Keepalive 心跳包定时器
+    // var timer: DispatchSourceTimer?
 
     // MARK: - Libssh2 C 回调函数静态封装
 
