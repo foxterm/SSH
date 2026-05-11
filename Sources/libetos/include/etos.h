@@ -24,6 +24,7 @@ void etos_cleanup(void);
 #define ETOS_PROXY_HTTP 2
 // #define ETOS_PROXY_HTTPS 3
 
+char *etos_base64_encode(const char *input);
 /* ------------------------------------------------------------
    网络 I/O 服务
    ------------------------------------------------------------ */
@@ -59,10 +60,8 @@ ssize_t etos_socket_send(SOCKET fd, const char *buf, ssize_t len, int flags);
 /** 接收原始数据 */
 ssize_t etos_socket_recv(SOCKET fd, char *buf, ssize_t len, int flags);
 
-
 /** 获取最后一次网络错误码 */
 int etos_socket_last_error(void);
-
 
 /* ------------------------------------------------------------
    并发与同步控制
