@@ -82,7 +82,7 @@ public class SSH {
     let mutex: Mutex = .init()
     /// 用于同步并发任务的等待组
     let wait: WaitGroup = .init()
-
+    /// 用于管理通道的轮询器
     let channelPoll: ChannelPoll = .init()
 
     /// 指向 libssh2_session 的原始 C 指针
