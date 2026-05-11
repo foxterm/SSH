@@ -18,6 +18,7 @@ public class Channel {
     }
 
     deinit {
+        free()
         #if DEBUG
             print("♻️", "Channel")
         #endif
@@ -196,12 +197,15 @@ public extension Channel {
                 libssh2_channel_wait_closed(self.rawChannel)
             }
         }
-
-        // 强制释放指针
-        libssh2_channel_free(rawChannel)
-        self.rawChannel = nil
+        free()
         #if DEBUG
             print("♻️", "Channel closed and freed safely")
         #endif
+    }
+
+    func free() {
+        // 强制释放指针
+        libssh2_channel_free(rawChannel)
+        rawChannel = nil
     }
 }
