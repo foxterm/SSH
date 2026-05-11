@@ -67,7 +67,8 @@ public extension SSH {
             freeSession()
             return false
         }
-        channelTask.socketFD = fd
+        channelPoll.socketFD = fd
+        channelPoll.bufferSize = bufferSize
         return true
     }
 
