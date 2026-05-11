@@ -96,7 +96,7 @@ public extension SCP {
         var totalSent: Int64 = 0
         let dummyOutput = OutputStream.toMemory()
 
-        await channel.ssh.channelTask.register(
+        await channel.ssh.channelPoll.register(
             handle: rawChannel,
             output: dummyOutput,
             outerr: nil,
@@ -169,7 +169,7 @@ public extension SCP {
         }
 
         var totalReceived: Int64 = 0
-        await channel.ssh.channelTask.register(
+        await channel.ssh.channelPoll.register(
             handle: rawChannel,
             output: stream,
             outerr: nil,
