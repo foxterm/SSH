@@ -79,3 +79,7 @@ typealias debugType =
 /// 通用的无参数、无返回值 C 回调函数类型
 /// 常用于简单的事件通知或无需参数的状态变更回调
 typealias cbGenericType = @convention(c) () -> Void
+
+typealias allocType = @convention(c) (Int, UnsafeMutablePointer<UnsafeMutableRawPointer?>?) -> UnsafeMutableRawPointer?
+typealias freeType = @convention(c) (UnsafeMutableRawPointer?, UnsafeMutablePointer<UnsafeMutableRawPointer?>?) -> Void
+typealias reallocType = @convention(c) (UnsafeMutableRawPointer?, Int, UnsafeMutablePointer<UnsafeMutableRawPointer?>?) -> UnsafeMutableRawPointer?
