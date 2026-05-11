@@ -16,7 +16,7 @@ public enum ProxyType: String, CaseIterable {
     case http
     // case https
 
-    public var portString: String {
+    public var portStr: String {
         switch self {
         case .http:
             "8080"
