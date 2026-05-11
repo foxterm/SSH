@@ -147,6 +147,8 @@ int64_t etos_sync_atomic_exchange(volatile int64_t *addr, int64_t value);
 int64_t etos_sync_atomic_cas(volatile int64_t *addr, int64_t expected,
                              int64_t desired);
 
+
+
 #ifdef __cplusplus
 }
 #endif
