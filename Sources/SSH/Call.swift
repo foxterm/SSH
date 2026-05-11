@@ -77,8 +77,6 @@ extension SSH {
         #endif
         // 释放会话资源
         freeSession()
-        // 通知外部代理处理连接中断逻辑
-        sessionDelegate?.disconnect()
     }
 
     /// 处理来自 libssh2 的调试追踪信息
