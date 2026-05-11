@@ -17,8 +17,6 @@ public class Shell {
     private var readOutputStream: OutputStream?
     private var errorOutputStream: OutputStream?
 
-    /// 任务执行队列，默认关联到主队列执行 UI 相关的回调
-    let job: Job = .init()
     /// 关联的底层通信渠道
     let channel: Channel
 
@@ -155,21 +153,20 @@ public extension Shell {
 
     /// 处理标准输出回调
     private func onStdout(_ data: Data) {
-        job.addOperation {
+        autoreleasepool {
             self.shellDelegate?.stdout(shell: self, data: data)
         }
     }
 
     /// 处理标准错误回调
     private func onStderr(_ data: Data) {
-        job.addOperation {
+        autoreleasepool {
             self.shellDelegate?.dtderr(shell: self, data: data)
         }
     }
 
     /// 关闭 Shell 会话并释放关联资源
     func closeShell() {
-        job.cancelAllOperations()
         writeInputStream?.close()
         writeOutputStream?.close()
         readOutputStream?.close()
