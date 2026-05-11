@@ -140,7 +140,7 @@ public extension Shell {
 
         // 异步注册到通道任务管理器中
         Task {
-            await channel.ssh.channelTask.register(
+            await channel.ssh.channelPoll.register(
                 handle: rawChannel,
                 output: outStream,
                 outerr: errStream,
