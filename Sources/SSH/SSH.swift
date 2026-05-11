@@ -83,7 +83,7 @@ public class SSH {
     /// 用于同步并发任务的等待组
     let wait: WaitGroup = .init()
 
-    let channelTask: ChannelPoll = .init()
+    let channelPoll: ChannelPoll = .init()
 
     /// 指向 libssh2_session 的原始 C 指针
     public internal(set) var rawSession: OpaquePointer?
