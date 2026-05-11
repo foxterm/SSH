@@ -164,7 +164,11 @@ extension ChannelPoll {
                 // 3. 处理写入
                 if canWrite {
                     let w = write(data: data, task: task)
-                    if w < 0 { if w != LIBSSH2_ERROR_EAGAIN { hasWriteError = true }} else { currentIncrement += w }
+                    if w < 0 {
+                        if w != LIBSSH2_ERROR_EAGAIN { hasWriteError = true }
+                    } else {
+                        currentIncrement += w
+                    }
                 }
 
                 // 4. 更新进度
@@ -257,7 +261,9 @@ extension ChannelPoll {
         // 1. 如果之前有残留未发完的数据，优先发送残留数据
         if !task.writeBuffer.isEmpty {
             let remainingData = task.writeBuffer
-            let rc = mutex.with { libssh2_channel_write_ex(task.handle, 0, remainingData, remainingData.count) }
+            let rc = mutex.with {
+                libssh2_channel_write_ex(task.handle, 0, remainingData, remainingData.count)
+            }
 
             if rc > 0 {
                 if rc >= remainingData.count {
@@ -280,7 +286,9 @@ extension ChannelPoll {
         let nread = input.read(data.buffer, maxLength: data.count)
         if nread > 0 {
             // 💡 只调用一次，绝不用 while 循环死等！
-            let written = mutex.with { libssh2_channel_write_ex(task.handle, 0, data.buffer, nread) }
+            let written = mutex.with {
+                libssh2_channel_write_ex(task.handle, 0, data.buffer, nread)
+            }
 
             if written > 0 {
                 if written < nread {
