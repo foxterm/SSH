@@ -215,27 +215,27 @@ extension ChannelPoll {
     }
 
     func remove(_ tasksToRemove: [OpaquePointer]) {
-        if tasksToRemove.isEmpty { return }
-
-        #if DEBUG
-            for handle in tasksToRemove {
-                print("🚨 准备移除 Handle: \(handle), 当前任务总数: \(_tasks.count)")
-            }
-        #endif
-
-        var removedTasks: [ChannelStream] = []
         mutex.with {
+            if tasksToRemove.isEmpty { return }
+
+            #if DEBUG
+                for handle in tasksToRemove {
+                    print("🚨 准备移除 Handle: \(handle), 当前任务总数: \(_tasks.count)")
+                }
+            #endif
+
+            var removedTasks: [ChannelStream] = []
             removedTasks = _tasks.filter { tasksToRemove.contains($0.handle) }
             _tasks.removeAll { task in
                 tasksToRemove.contains(task.handle)
             }
-        }
 
-        for t in removedTasks {
-            t.output.close()
-            t.outerr?.close()
-            t.write?.close()
-            t.continuation?.resume()
+            for t in removedTasks {
+                t.output.close()
+                t.outerr?.close()
+                t.write?.close()
+                t.continuation?.resume()
+            }
         }
     }
 
