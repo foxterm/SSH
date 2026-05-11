@@ -1,11 +1,11 @@
 #include "etos.h"
 #include <errno.h>
-#include <stdbool.h>
-#include <stdio.h>
-#include <string.h>
 #include <openssl/bio.h>
 #include <openssl/buffer.h>
 #include <openssl/evp.h>
+#include <stdbool.h>
+#include <stdio.h>
+#include <string.h>
 // --- 跨平台头文件和定义 ---
 #ifdef _WIN32
 #include <mstcpip.h>
@@ -150,11 +150,9 @@ SOCKET etos_socket_connect(const char *host, int port, int timeout_ms, int ttl,
   }
   freeaddrinfo(res);
 
-
   return fd;
 }
-char *etos_base64_encode(const char *input)
-{
+char *etos_base64_encode(const char *input) {
   if (!input)
     return NULL;
   BIO *b64 = BIO_new(BIO_f_base64());
@@ -166,8 +164,7 @@ char *etos_base64_encode(const char *input)
   BUF_MEM *ptr;
   BIO_get_mem_ptr(mem, &ptr);
   char *out = (char *)malloc(ptr->length + 1);
-  if (out)
-  {
+  if (out) {
     memcpy(out, ptr->data, ptr->length);
     out[ptr->length] = '\0';
   }
@@ -281,7 +278,6 @@ SOCKET etos_socket_connect_proxy(int type, const char *proxy_host,
         }
       }
     }
-
   }
 
 failed:
