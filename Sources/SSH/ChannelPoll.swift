@@ -76,6 +76,9 @@ extension ChannelPoll {
     }
 
     func runMasterLoop() {
+        defer {
+            mutex.with { _isLooping = false }
+        }
         let data: Buffer<CChar> = .init(bufferSize)
         var progressTracker: [OpaquePointer: Int64] = [:]
         while true {
@@ -136,20 +139,26 @@ extension ChannelPoll {
 
                 // 1. 先处理读取
                 if canRead {
-                    let r = read(data: data, handle: task.handle, output: task.output, stream_id: 0)
-                    if r < 0 { if r != LIBSSH2_ERROR_EAGAIN { hasReadError = true } } else { currentIncrement += r }
+                    mutex.with {
+                        let r = read(data: data, handle: task.handle, output: task.output, stream_id: 0)
+                        if r < 0 { if r != LIBSSH2_ERROR_EAGAIN { hasReadError = true } } else { currentIncrement += r }
+                    }
                 }
 
                 // 2. 处理标准错误
                 if canRead, let outerr = task.outerr {
-                    let r = read(data: data, handle: task.handle, output: outerr, stream_id: 1)
-                    if r < 0 { if r != LIBSSH2_ERROR_EAGAIN { hasReadError = true } } else { currentIncrement += r }
+                    mutex.with {
+                        let r = read(data: data, handle: task.handle, output: outerr, stream_id: 1)
+                        if r < 0 { if r != LIBSSH2_ERROR_EAGAIN { hasReadError = true } } else { currentIncrement += r }
+                    }
                 }
 
                 // 3. 处理写入
                 if canWrite {
-                    let w = write(data: data, task: task)
-                    if w < 0 { if w != LIBSSH2_ERROR_EAGAIN { hasWriteError = true }} else { currentIncrement += w }
+                    mutex.with {
+                        let w = write(data: data, task: task)
+                        if w < 0 { if w != LIBSSH2_ERROR_EAGAIN { hasWriteError = true }} else { currentIncrement += w }
+                    }
                 }
 
                 // 4. 更新进度
@@ -178,7 +187,6 @@ extension ChannelPoll {
                 remove(toRemove)
             }
         }
-        mutex.with { _isLooping = false }
     }
 
     /// 当发生系统级网络错误（poll 返回 < 0）时，强制清理所有当前正在运行的任务
