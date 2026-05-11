@@ -114,7 +114,7 @@ public extension Shell {
     /// 轮询 Shell 输出
     /// 在独立后台队列中运行，通过 libssh2_poll 监听读取事件
     func setupStreamsAndRegister() {
-        guard let rawChannel = rawChannel else { return }
+        guard let rawChannel else { return }
         var createInStream: InputStream?
         var createOutStream: OutputStream?
         Stream.getBoundStreams(withBufferSize: channel.ssh.bufferSize, inputStream: &createInStream, outputStream: &createOutStream)
@@ -125,12 +125,12 @@ public extension Shell {
         writeOutputStream?.open()
 
         readOutputStream = BlockOutputStream { [weak self] data in
-            guard let self = self else { return }
+            guard let self else { return }
             onStdout(data)
         }
 
         errorOutputStream = BlockOutputStream { [weak self] data in
-            guard let self = self else { return }
+            guard let self else { return }
             onStderr(data)
         }
 
