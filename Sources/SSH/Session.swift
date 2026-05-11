@@ -92,11 +92,23 @@ public extension SSH {
         return libssh2_session_banner_get(rawSession).string.trim
     }
 
-    /// 获取服务器公钥信息 (用于主机身份验证)
-    var serverPublickey: String? {
-        guard let rawSession = rawSession else { return nil }
+    /// 获取服务器公钥信息
+    var serverPublickeyStr: String? {
+        guard let type = methods(.hostkey) else { return nil }
+        guard let key = serverPublickey else {
+            return nil
+        }
+        return "\(type) \(key.base64String)"
+    }
 
-        return ""
+    /// 获取服务器公钥信息
+    var serverPublickey: Data? {
+        guard let rawSession = rawSession else { return nil }
+        let len: Buffer<Int> = .init()
+        guard let key = libssh2_session_hostkey(rawSession, len.buffer, nil) else {
+            return nil
+        }
+        return Data(bytes: key, count: len.pointee)
     }
 
     /// 计算并返回服务器公钥的指纹字符串
