@@ -32,7 +32,7 @@ extension SSH {
     /// - Parameter callback: 执行 libssh2 操作的闭包
     /// - Returns: 最终执行结果
     func callSSH2<T: FixedWidthInteger>(_ callback: @escaping () -> T) -> T {
-        mutex.with {
+        channelPoll.mutex.with {
             var ret: T
             repeat {
                 ret = callback()
@@ -50,7 +50,7 @@ extension SSH {
     /// - Parameter callback: 执行 libssh2 操作的闭包
     /// - Returns: 最终执行结果
     func callSSH2<T>(_ callback: @escaping () -> T?) -> T? {
-        mutex.with {
+        channelPoll.mutex.with {
             var ret: T?
             repeat {
                 ret = callback()
