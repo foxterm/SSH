@@ -6,7 +6,7 @@ import Foundation
 
 public extension Data {
     func withCPointer<R>(_ body: (UnsafePointer<Int8>, Int) -> R) -> R {
-        return withUnsafeBytes { bufPtr in
+        withUnsafeBytes { bufPtr in
             let ptr = bufPtr.baseAddress!.assumingMemoryBound(to: Int8.self)
             return body(ptr, self.count)
         }
