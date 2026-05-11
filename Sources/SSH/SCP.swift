@@ -85,7 +85,7 @@ public extension SCP {
         progress: @escaping (_ current: Int64, _ size: Int64) -> Bool = { _, _ in true }
     ) async -> Bool {
         if rawChannel != nil { channel.closeChannel() }
-        guard let rawSession = rawSession else { return false }
+        guard let rawSession else { return false }
 
         channel.rawChannel = await channel.ssh.callSSH2 { [self] in
             libssh2_scp_send64(rawSession, remotePath, mode, size, 0, 0)
@@ -153,7 +153,7 @@ public extension SCP {
         progress: @escaping (_ current: Int64, _ size: Int64) -> Bool = { _, _ in true }
     ) async -> Bool {
         if rawChannel != nil { channel.closeChannel() }
-        guard let rawSession = rawSession else { return false }
+        guard let rawSession else { return false }
 
         var fileinfo = libssh2_struct_stat()
         channel.rawChannel = await channel.ssh.callSSH2 { [self] in
