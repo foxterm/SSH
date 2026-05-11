@@ -103,7 +103,7 @@ public extension SSH {
 
     /// 获取服务器公钥信息
     var serverPublickey: Data? {
-        guard let rawSession = rawSession else { return nil }
+        guard let rawSession else { return nil }
         let len: Buffer<Int> = .init()
         guard let key = libssh2_session_hostkey(rawSession, len.buffer, nil) else {
             return nil
