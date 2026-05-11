@@ -62,22 +62,22 @@ extension SSH {
         return ret
     }
 
-    // 响应 SSH 服务器主动发起的断开连接回调
-    // 匹配 libssh2 的 `libssh2_session_abstract_set` 毁掉签名
-//    func disconnect(
-//        sess _: UnsafeRawPointer,
-//        reason _: CInt,
-//        message _: UnsafePointer<CChar>,
-//        messageLen _: CInt,
-//        language _: UnsafePointer<CChar>,
-//        languageLen _: CInt
-//    ) {
-//        #if DEBUG
-//            print("SSH 会话已被远程服务器关闭")
-//        #endif
-//        // 释放会话资源
-//        freeSession()
-//    }
+    /// 响应 SSH 服务器主动发起的断开连接回调
+    /// 匹配 libssh2 的 `libssh2_session_abstract_set` 毁掉签名
+    func disconnect(
+        sess _: UnsafeRawPointer,
+        reason _: CInt,
+        message _: UnsafePointer<CChar>,
+        messageLen _: CInt,
+        language _: UnsafePointer<CChar>,
+        languageLen _: CInt
+    ) {
+        #if DEBUG
+            print("SSH 会话已被远程服务器关闭")
+        #endif
+        // 释放会话资源
+        freeSession()
+    }
 
     /// 处理来自 libssh2 的调试追踪信息
     /// - Parameters:
