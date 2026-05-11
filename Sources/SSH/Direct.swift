@@ -92,7 +92,7 @@ extension Direct {
         guard let rawChannel else {
             return
         }
-        await channel.ssh.channelTask.register(
+        await channel.ssh.channelPoll.register(
             handle: rawChannel,
             output: write,
             outerr: nil,
