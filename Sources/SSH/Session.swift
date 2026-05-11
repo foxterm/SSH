@@ -226,8 +226,6 @@ public extension SSH {
     /// 安全释放 SSH 会话资源
     /// 包含取消定时器、发送断开指令、释放内存等
     func freeSession() {
-        // 通知外部代理处理连接中断逻辑
-        sessionDelegate?.disconnect()
         channelPoll.mutex.with {
             guard rawSession != nil else { return }
             //            timer?.cancel()
@@ -244,6 +242,8 @@ public extension SSH {
                 print("♻️", "rawSession released")
             #endif
         }
+        // 通知外部代理处理连接中断逻辑
+        sessionDelegate?.disconnect()
     }
 }
 
