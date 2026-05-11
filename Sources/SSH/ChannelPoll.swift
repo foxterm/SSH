@@ -136,29 +136,35 @@ extension ChannelPoll {
                 var currentIncrement: Int64 = 0
                 var hasReadError = false
                 var hasWriteError = false
+                var isEofReached = false
 
                 // 1. 先处理读取
                 if canRead {
-                    mutex.with {
-                        let r = read(data: data, handle: task.handle, output: task.output, stream_id: 0)
-                        if r < 0 { if r != LIBSSH2_ERROR_EAGAIN { hasReadError = true } } else { currentIncrement += r }
+                    let r = read(data: data, handle: task.handle, output: task.output, stream_id: 0)
+                    if r < 0 {
+                        if r != LIBSSH2_ERROR_EAGAIN { hasReadError = true }
+                    } else if r == 0 {
+                        if libssh2_channel_eof(task.handle) != 0 { isEofReached = true }
+                    } else {
+                        currentIncrement += r
                     }
                 }
 
                 // 2. 处理标准错误
-                if canRead, let outerr = task.outerr {
-                    mutex.with {
-                        let r = read(data: data, handle: task.handle, output: outerr, stream_id: 1)
-                        if r < 0 { if r != LIBSSH2_ERROR_EAGAIN { hasReadError = true } } else { currentIncrement += r }
+                if canRead && !hasReadError && !isEofReached, let outerr = task.outerr {
+                    let r = read(data: data, handle: task.handle, output: outerr, stream_id: 1)
+                    if r < 0 {
+                        if r != LIBSSH2_ERROR_EAGAIN { hasReadError = true }
+                    } else if r > 0 {
+                        currentIncrement += r
+                        isEofReached = false
                     }
                 }
 
                 // 3. 处理写入
                 if canWrite {
-                    mutex.with {
-                        let w = write(data: data, task: task)
-                        if w < 0 { if w != LIBSSH2_ERROR_EAGAIN { hasWriteError = true }} else { currentIncrement += w }
-                    }
+                    let w = write(data: data, task: task)
+                    if w < 0 { if w != LIBSSH2_ERROR_EAGAIN { hasWriteError = true }} else { currentIncrement += w }
                 }
 
                 // 4. 更新进度
@@ -170,12 +176,14 @@ extension ChannelPoll {
                         continue
                     }
                 }
+                // 发生实质性错误，移出队列
                 if hasReadError || hasWriteError {
                     tasksToRemove.insert(task.handle)
                     continue
                 }
 
-                if libssh2_channel_eof(task.handle) != 0 {
+                // 只有满足 EOF 且数据完全排空，才移出队列
+                if isEofReached {
                     tasksToRemove.insert(task.handle)
                     continue
                 }
@@ -234,7 +242,7 @@ extension ChannelPoll {
     func read(data: Buffer<CChar>, handle: OpaquePointer, output: OutputStream, stream_id: Int32)
         -> Int64
     {
-        let n = libssh2_channel_read_ex(handle, stream_id, data.buffer, data.count)
+        let n = mutex.with { libssh2_channel_read_ex(handle, stream_id, data.buffer, data.count) }
         if n > 0 {
             output.write(data.buffer, maxLength: n)
             return n.int64 // 💡 显式强转成统一的 Int
@@ -249,7 +257,7 @@ extension ChannelPoll {
         // 1. 如果之前有残留未发完的数据，优先发送残留数据
         if !task.writeBuffer.isEmpty {
             let remainingData = task.writeBuffer
-            let rc = libssh2_channel_write_ex(task.handle, 0, remainingData, remainingData.count)
+            let rc = mutex.with { libssh2_channel_write_ex(task.handle, 0, remainingData, remainingData.count) }
 
             if rc > 0 {
                 if rc >= remainingData.count {
@@ -272,7 +280,7 @@ extension ChannelPoll {
         let nread = input.read(data.buffer, maxLength: data.count)
         if nread > 0 {
             // 💡 只调用一次，绝不用 while 循环死等！
-            let written = libssh2_channel_write_ex(task.handle, 0, data.buffer, nread)
+            let written = mutex.with { libssh2_channel_write_ex(task.handle, 0, data.buffer, nread) }
 
             if written > 0 {
                 if written < nread {
