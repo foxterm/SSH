@@ -60,7 +60,7 @@ public class SSH {
     public let recvSize: Atomic = .init()
 
     /// 用于保证 libssh2 会话在多线程环境下安全的互斥锁
-    let mutex: Mutex = .init()
+    /// let mutex: Mutex = .init()
     /// 用于同步并发任务的等待组
     let wait: WaitGroup = .init()
     /// 用于管理通道的轮询器
