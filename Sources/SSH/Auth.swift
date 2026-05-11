@@ -160,17 +160,18 @@ public extension SSH {
 
     /// 开启 SSH 心跳包计时器
     /// 每隔 5 秒发送一次 Keepalive 信号，防止连接因闲置被网关断开
-    func keepalive() {
-        keepaliveConfig()
-        timer?.cancel()
-        timer = nil
-
-        // 使用 DispatchSource 创建高精度的后台计时器
-        timer = DispatchSource.makeTimerSource(queue: .global())
-        timer?.schedule(deadline: .now() + .seconds(5), repeating: 5.0)
-        timer?.setEventHandler { [weak self] in
-            self?.sendKeepalive()
-        }
-        timer?.resume()
-    }
+    /// 不需要心跳，使用了 Socket 层的 KeepAlive 机制防止链路被运营商中间设备切断
+//    func keepalive() {
+//        keepaliveConfig()
+//        timer?.cancel()
+//        timer = nil
+//
+//        // 使用 DispatchSource 创建高精度的后台计时器
+//        timer = DispatchSource.makeTimerSource(queue: .global())
+//        timer?.schedule(deadline: .now() + .seconds(5), repeating: 5.0)
+//        timer?.setEventHandler { [weak self] in
+//            self?.sendKeepalive()
+//        }
+//        timer?.resume()
+//    }
 }
