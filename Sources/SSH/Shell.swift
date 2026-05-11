@@ -8,7 +8,6 @@ import Foundation
 
 /// Shell 交互类，负责管理 SSH 渠道的伪终端 (PTY) 会话与数据交互
 public class Shell {
-    let wait: WaitGroup = .init()
     /// Shell 事件回调代理
     public var shellDelegate: ShellDelegate?
 
@@ -171,7 +170,6 @@ public extension Shell {
         writeOutputStream?.close()
         readOutputStream?.close()
         errorOutputStream?.close()
-        wait.wait()
         if channel.sendEof() {
             channel.waitEOF()
         }
