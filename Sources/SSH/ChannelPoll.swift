@@ -203,7 +203,7 @@ extension ChannelPoll {
 
     /// 当发生系统级网络错误（poll 返回 < 0）时，强制清理所有当前正在运行的任务
     private func cleanupAll() {
-        let allHandles = mutex.with { _tasks.map { $0.handle } }
+        let allHandles = mutex.with { _tasks.map(\.handle) }
         if !allHandles.isEmpty {
             #if DEBUG
                 print("🚨 触发全局清理，正在移除 \(allHandles.count) 个任务")
