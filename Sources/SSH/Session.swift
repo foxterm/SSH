@@ -16,7 +16,7 @@ public extension SSH {
         rawSession = libssh2_session_init_ex(
             nil, nil, nil, Unmanaged.passUnretained(self).toOpaque()
         )
-        guard rawSession != nil else {
+        guard let rawSession else {
             return false
         }
         // 握手阶段通常使用阻塞模式以简化状态机
@@ -154,22 +154,22 @@ public extension SSH {
         libssh2_keepalive_config(rawSession, 1, keepaliveInterval.uint32)
     }
 
-//    /// 发送心跳包，维持连接不断开
+    //    /// 发送心跳包，维持连接不断开
     /// 不需要心跳，使用了 Socket 层的 KeepAlive 机制防止链路被运营商中间设备切断
-//    internal func sendKeepalive() {
-//        guard rawSession != nil, isAuthenticated else { return }
-//        let seconds: Buffer<Int32> = .init()
-//        let rc = libssh2_keepalive_send(rawSession, seconds.buffer)
-//        guard rc == LIBSSH2_ERROR_NONE else {
-//            #if DEBUG
-//                print("心跳失败: \(rc)")
-//            #endif
-//            return
-//        }
-//        #if DEBUG
-//            print("下一次心跳 \(seconds.pointee) 秒")
-//        #endif
-//    }
+    //    internal func sendKeepalive() {
+    //        guard rawSession != nil, isAuthenticated else { return }
+    //        let seconds: Buffer<Int32> = .init()
+    //        let rc = libssh2_keepalive_send(rawSession, seconds.buffer)
+    //        guard rc == LIBSSH2_ERROR_NONE else {
+    //            #if DEBUG
+    //                print("心跳失败: \(rc)")
+    //            #endif
+    //            return
+    //        }
+    //        #if DEBUG
+    //            print("下一次心跳 \(seconds.pointee) 秒")
+    //        #endif
+    //    }
 
     /// 读取远程文件的完整内容
     func readFile(_ filename: String) async -> String? {
@@ -228,8 +228,8 @@ public extension SSH {
     func freeSession() {
         channelPoll.mutex.with {
             guard rawSession != nil else { return }
-//            timer?.cancel()
-//            timer = nil
+            //            timer?.cancel()
+            //            timer = nil
 
             // 切换回阻塞模式以确保优雅退出
             sessionBlocking = true
