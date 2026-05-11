@@ -113,7 +113,7 @@ public extension Shell {
 
     /// 轮询 Shell 输出
     /// 在独立后台队列中运行，通过 libssh2_poll 监听读取事件
-    func setupStreamsAndRegister() {
+    private func setupStreamsAndRegister() {
         guard let rawChannel else { return }
         var createInStream: InputStream?
         var createOutStream: OutputStream?
