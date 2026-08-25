@@ -6,7 +6,7 @@ let package = Package(
     name: "SSH",
     platforms: [
         .macOS(.v14),
-        .iOS(.v17),
+        .iOS(.v16),
     ],
     products: [
         .library(name: "SSH", targets: ["SSH"]),
