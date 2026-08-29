@@ -35,7 +35,9 @@ public extension Machine {
     ///   - force: 是否强制删除 (相当于 -f)
     func dockerRemove(_ id: String, force: Bool = false) async -> Bool {
         var cmd = [container.command, "rm"]
-        if force { cmd.append("-f") }
+        if force {
+            cmd.append("-f")
+        }
         cmd.append(id)
         return await ssh.exec(cmd) != nil
     }

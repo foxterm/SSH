@@ -50,7 +50,9 @@ public extension Machine {
             let maxRaw = Double(parts[4]) ?? 0
             let label = parts[5].lowercased()
 
-            if tempRaw == 0 { return nil }
+            if tempRaw == 0 {
+                return nil
+            }
 
             var t = TemperatureStat()
             t.name = name

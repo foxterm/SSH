@@ -35,6 +35,7 @@ public class SSH {
         self.compress = compress
         // 确保 Banner 格式符合 SSH 规范（必须以 SSH- 开头）
         clientbanner = !banner.isEmpty && banner.hasPrefix("SSH-") ? banner : SSH.banner
+        etos_init()
     }
 
     /// 会话回调代理，用于同步连接状态、认证交互及流量监控
@@ -47,6 +48,8 @@ public class SSH {
     public var ttl: Int32 = 0
     public var window: Int32 = 0
     public var scale: Int32 = 0
+
+    public var hostKeyAlgorithms: String = ""
 
     /// 数据传输缓冲区大小，默认 64K
     public var bufferSize = 0x10000 // 64K
@@ -110,6 +113,7 @@ public class SSH {
 
     deinit {
         close()
+        etos_cleanup()
         #if DEBUG
             print("♻️", "SSH 核心实例已安全销毁")
         #endif

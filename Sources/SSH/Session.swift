@@ -51,6 +51,17 @@ public extension SSH {
         libssh2_session_set_timeout(rawSession, timeout)
         libssh2_session_banner_set(rawSession, clientbanner)
 
+        var keyAlgorithms = hostKeyAlgorithms
+        if keyAlgorithms.isEmpty {
+            let key = Self.getHostKeyAlgorithms(session: rawSession)
+            keyAlgorithms = (key.supported + key.insecure).joined(separator: ",")
+        }
+        libssh2_session_method_pref(
+            rawSession,
+            LIBSSH2_METHOD_HOSTKEY,
+            keyAlgorithms
+        )
+
         // 执行底层握手
         let rec = await callSSH2 { [self] in
             libssh2_session_handshake(rawSession, fd)
@@ -70,6 +81,82 @@ public extension SSH {
         channelPoll.socketFD = fd
         channelPoll.bufferSize = bufferSize
         return true
+    }
+
+    static func getHostKeyAlgorithms(session inputSession: OpaquePointer? = nil) -> HostKeySupport {
+        let priorityMap: [String: Int] = [
+            "ssh-ed25519": 1,
+            "ecdsa-sha2-nistp256": 2,
+            "ecdsa-sha2-nistp384": 3,
+            "ecdsa-sha2-nistp521": 4,
+            "rsa-sha2-512": 5,
+            "rsa-sha2-256": 6,
+            "ssh-rsa": 7,
+            "ssh-dss": 8,
+        ]
+
+        let insecureSet: Set = ["ssh-rsa", "ssh-dss"]
+
+        let targetSession: OpaquePointer?
+        let isCreatedLocally: Bool
+
+        if let session = inputSession {
+            targetSession = session
+            isCreatedLocally = false
+        } else {
+            targetSession = libssh2_session_init_ex(nil, nil, nil, nil)
+            isCreatedLocally = true
+        }
+
+        guard let session = targetSession else {
+            return HostKeySupport(supported: [], insecure: [])
+        }
+
+        defer {
+            if isCreatedLocally {
+                libssh2_session_free(session)
+            }
+        }
+
+        var algsPtr: UnsafeMutablePointer<UnsafePointer<CChar>?>? = nil
+        let count = libssh2_session_supported_algs(session, LIBSSH2_METHOD_HOSTKEY, &algsPtr)
+
+        guard count > 0, let algs = algsPtr else {
+            return HostKeySupport(supported: [], insecure: [])
+        }
+
+        defer {
+            libssh2_free(session, algsPtr)
+        }
+
+        var rawList: [String] = []
+        for i in 0 ..< Int(count) {
+            if let cString = algs[i] {
+                rawList.append(String(cString: cString))
+            }
+        }
+
+        let sortedList = rawList.sorted { a, b in
+            let priorityA = priorityMap[a] ?? Int.max
+            let priorityB = priorityMap[b] ?? Int.max
+            if priorityA != priorityB {
+                return priorityA < priorityB
+            }
+            return a < b
+        }
+
+        var supported: [String] = []
+        var insecure: [String] = []
+
+        for alg in sortedList {
+            if insecureSet.contains(alg) {
+                insecure.append(alg)
+            } else {
+                supported.append(alg)
+            }
+        }
+
+        return HostKeySupport(supported: supported, insecure: insecure)
     }
 
     /// 获取当前会话协商的算法方法名

@@ -207,19 +207,37 @@ public struct FilePermissions: RawRepresentable {
         var others: Permissions = []
 
         // 检查并设置所有者权限 (User)
-        if rawValue & LIBSSH2_SFTP_S_IRUSR == LIBSSH2_SFTP_S_IRUSR { owner.insert(.read) }
-        if rawValue & LIBSSH2_SFTP_S_IWUSR == LIBSSH2_SFTP_S_IWUSR { owner.insert(.write) }
-        if rawValue & LIBSSH2_SFTP_S_IXUSR == LIBSSH2_SFTP_S_IXUSR { owner.insert(.execute) }
+        if rawValue & LIBSSH2_SFTP_S_IRUSR == LIBSSH2_SFTP_S_IRUSR {
+            owner.insert(.read)
+        }
+        if rawValue & LIBSSH2_SFTP_S_IWUSR == LIBSSH2_SFTP_S_IWUSR {
+            owner.insert(.write)
+        }
+        if rawValue & LIBSSH2_SFTP_S_IXUSR == LIBSSH2_SFTP_S_IXUSR {
+            owner.insert(.execute)
+        }
 
         // 检查并设置属组权限 (Group)
-        if rawValue & LIBSSH2_SFTP_S_IRGRP == LIBSSH2_SFTP_S_IRGRP { group.insert(.read) }
-        if rawValue & LIBSSH2_SFTP_S_IWGRP == LIBSSH2_SFTP_S_IWGRP { group.insert(.write) }
-        if rawValue & LIBSSH2_SFTP_S_IXGRP == LIBSSH2_SFTP_S_IXGRP { group.insert(.execute) }
+        if rawValue & LIBSSH2_SFTP_S_IRGRP == LIBSSH2_SFTP_S_IRGRP {
+            group.insert(.read)
+        }
+        if rawValue & LIBSSH2_SFTP_S_IWGRP == LIBSSH2_SFTP_S_IWGRP {
+            group.insert(.write)
+        }
+        if rawValue & LIBSSH2_SFTP_S_IXGRP == LIBSSH2_SFTP_S_IXGRP {
+            group.insert(.execute)
+        }
 
         // 检查并设置其他用户权限 (Others)
-        if rawValue & LIBSSH2_SFTP_S_IROTH == LIBSSH2_SFTP_S_IROTH { others.insert(.read) }
-        if rawValue & LIBSSH2_SFTP_S_IWOTH == LIBSSH2_SFTP_S_IWOTH { others.insert(.write) }
-        if rawValue & LIBSSH2_SFTP_S_IXOTH == LIBSSH2_SFTP_S_IXOTH { others.insert(.execute) }
+        if rawValue & LIBSSH2_SFTP_S_IROTH == LIBSSH2_SFTP_S_IROTH {
+            others.insert(.read)
+        }
+        if rawValue & LIBSSH2_SFTP_S_IWOTH == LIBSSH2_SFTP_S_IWOTH {
+            others.insert(.write)
+        }
+        if rawValue & LIBSSH2_SFTP_S_IXOTH == LIBSSH2_SFTP_S_IXOTH {
+            others.insert(.execute)
+        }
 
         self.init(owner: owner, group: group, others: others)
     }
@@ -242,19 +260,37 @@ public struct FilePermissions: RawRepresentable {
         var flag: Int32 = 0
 
         // 组合所有者权限位
-        if owner.contains(.read) { flag |= LIBSSH2_SFTP_S_IRUSR }
-        if owner.contains(.write) { flag |= LIBSSH2_SFTP_S_IWUSR }
-        if owner.contains(.execute) { flag |= LIBSSH2_SFTP_S_IXUSR }
+        if owner.contains(.read) {
+            flag |= LIBSSH2_SFTP_S_IRUSR
+        }
+        if owner.contains(.write) {
+            flag |= LIBSSH2_SFTP_S_IWUSR
+        }
+        if owner.contains(.execute) {
+            flag |= LIBSSH2_SFTP_S_IXUSR
+        }
 
         // 组合属组权限位
-        if group.contains(.read) { flag |= LIBSSH2_SFTP_S_IRGRP }
-        if group.contains(.write) { flag |= LIBSSH2_SFTP_S_IWGRP }
-        if group.contains(.execute) { flag |= LIBSSH2_SFTP_S_IXGRP }
+        if group.contains(.read) {
+            flag |= LIBSSH2_SFTP_S_IRGRP
+        }
+        if group.contains(.write) {
+            flag |= LIBSSH2_SFTP_S_IWGRP
+        }
+        if group.contains(.execute) {
+            flag |= LIBSSH2_SFTP_S_IXGRP
+        }
 
         // 组合其他用户权限位
-        if others.contains(.read) { flag |= LIBSSH2_SFTP_S_IROTH }
-        if others.contains(.write) { flag |= LIBSSH2_SFTP_S_IWOTH }
-        if others.contains(.execute) { flag |= LIBSSH2_SFTP_S_IXOTH }
+        if others.contains(.read) {
+            flag |= LIBSSH2_SFTP_S_IROTH
+        }
+        if others.contains(.write) {
+            flag |= LIBSSH2_SFTP_S_IWOTH
+        }
+        if others.contains(.execute) {
+            flag |= LIBSSH2_SFTP_S_IXOTH
+        }
 
         return flag
     }

@@ -27,7 +27,9 @@ public extension Machine {
                 guard p.count >= 12 else { continue }
                 let devName = p[0]
                 // 过滤无意义设备
-                if devName.hasPrefix("loop") || devName.hasPrefix("ram") || devName.hasPrefix("zram") { continue }
+                if devName.hasPrefix("loop") || devName.hasPrefix("ram") || devName.hasPrefix("zram") {
+                    continue
+                }
                 dict[devName] = p.dropFirst().map { Int64($0) ?? 0 }
             }
             return dict
@@ -95,7 +97,9 @@ public extension Machine {
             }
 
             // 过滤虚拟文件系统：只保留路径形式的设备（如 /dev/sda1）或远程挂载（如 NFS/SMB 的 IP:Path）
-            if !d.device.hasPrefix("/"), !d.device.contains(":") { return nil }
+            if !d.device.hasPrefix("/"), !d.device.contains(":") {
+                return nil
+            }
             return d
         }
     }

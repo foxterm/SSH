@@ -57,8 +57,12 @@ public class io {
         _ progress: @escaping (_ send: Int) -> Bool = { _ in true }
     ) -> Int {
         // 确保流在操作前开启
-        if r.streamStatus == .notOpen { r.open() }
-        if w.streamStatus == .notOpen { w.open() }
+        if r.streamStatus == .notOpen {
+            r.open()
+        }
+        if w.streamStatus == .notOpen {
+            w.open()
+        }
         defer {
             // 操作完成后确保流已关闭，释放资源
             w.close()
@@ -73,7 +77,9 @@ public class io {
         while r.hasBytesAvailable {
             let nread = r.read(buffer.buffer, maxLength: buffer.count)
             guard nread > 0 else {
-                if nread < 0 { return nread } // 读取出错
+                if nread < 0 {
+                    return nread
+                } // 读取出错
                 break // 读取完毕
             }
 
@@ -81,7 +87,9 @@ public class io {
             // 确保将读取到的数据完整写入输出流
             while offset < nread, w.hasSpaceAvailable {
                 let written = w.write(buffer.buffer + offset, maxLength: nread - offset)
-                if written < 0 { return written } // 写入出错
+                if written < 0 {
+                    return written
+                } // 写入出错
                 offset += written
                 total += written
             }

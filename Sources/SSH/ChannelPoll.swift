@@ -84,7 +84,9 @@ extension ChannelPoll {
         while true {
             // 拿到当前的引用列表
             let currentTasks = mutex.with { _tasks }
-            if currentTasks.isEmpty { break }
+            if currentTasks.isEmpty {
+                break
+            }
 
             var pollFd = pollfd()
             pollFd.fd = socketFD
@@ -104,8 +106,12 @@ extension ChannelPoll {
                     wantsWrite = true
                 }
             }
-            if wantsRead { pollFd.events |= POLLIN.int16 | POLLPRI.int16 }
-            if wantsWrite { pollFd.events |= POLLOUT.int16 }
+            if wantsRead {
+                pollFd.events |= POLLIN.int16 | POLLPRI.int16
+            }
+            if wantsWrite {
+                pollFd.events |= POLLOUT.int16
+            }
 
             let pollRc = poll(&pollFd, 1, 10)
             if pollRc < 0 {
@@ -142,9 +148,13 @@ extension ChannelPoll {
                 if canRead {
                     let r = read(data: data, handle: task.handle, output: task.output, stream_id: 0)
                     if r < 0 {
-                        if r != LIBSSH2_ERROR_EAGAIN { hasReadError = true }
+                        if r != LIBSSH2_ERROR_EAGAIN {
+                            hasReadError = true
+                        }
                     } else if r == 0 {
-                        if libssh2_channel_eof(task.handle) != 0 { isEofReached = true }
+                        if libssh2_channel_eof(task.handle) != 0 {
+                            isEofReached = true
+                        }
                     } else {
                         currentIncrement += r
                     }
@@ -154,7 +164,9 @@ extension ChannelPoll {
                 if canRead && !hasReadError && !isEofReached, let outerr = task.outerr {
                     let r = read(data: data, handle: task.handle, output: outerr, stream_id: 1)
                     if r < 0 {
-                        if r != LIBSSH2_ERROR_EAGAIN { hasReadError = true }
+                        if r != LIBSSH2_ERROR_EAGAIN {
+                            hasReadError = true
+                        }
                     } else if r > 0 {
                         currentIncrement += r
                         isEofReached = false
@@ -165,7 +177,9 @@ extension ChannelPoll {
                 if canWrite {
                     let w = write(data: data, task: task)
                     if w < 0 {
-                        if w != LIBSSH2_ERROR_EAGAIN { hasWriteError = true }
+                        if w != LIBSSH2_ERROR_EAGAIN {
+                            hasWriteError = true
+                        }
                     } else {
                         currentIncrement += w
                     }
@@ -213,14 +227,22 @@ extension ChannelPoll {
     }
 
     private func setupStreams(for task: ChannelStream) {
-        if task.output.streamStatus == .notOpen { task.output.open() }
-        if task.outerr?.streamStatus == .notOpen { task.outerr?.open() }
-        if task.write?.streamStatus == .notOpen { task.write?.open() }
+        if task.output.streamStatus == .notOpen {
+            task.output.open()
+        }
+        if task.outerr?.streamStatus == .notOpen {
+            task.outerr?.open()
+        }
+        if task.write?.streamStatus == .notOpen {
+            task.write?.open()
+        }
     }
 
     func remove(_ tasksToRemove: [OpaquePointer]) {
         mutex.with {
-            if tasksToRemove.isEmpty { return }
+            if tasksToRemove.isEmpty {
+                return
+            }
 
             #if DEBUG
                 for handle in tasksToRemove {

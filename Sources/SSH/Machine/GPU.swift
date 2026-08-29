@@ -77,7 +77,9 @@ extension Machine {
     }
 
     private func parseNA(_ value: String) -> Double? {
-        if value.contains("N/A") { return nil }
+        if value.contains("N/A") {
+            return nil
+        }
         return Double(value)
     }
 
@@ -158,16 +160,24 @@ extension Machine {
             return 0
         }
 
-        if str.isEmpty { return 0 }
+        if str.isEmpty {
+            return 0
+        }
 
         let pattern = "[0-9.]+"
         guard let range = str.range(of: pattern, options: .regularExpression),
               let value = Double(str[range])
         else { return 0 }
 
-        if str.contains("gib") || str.contains("gb") { return value * 0x4000000 }
-        if str.contains("mib") || str.contains("mb") { return value * 0x10000 }
-        if str.contains("kib") || str.contains("kb") { return value * 0x400 }
+        if str.contains("gib") || str.contains("gb") {
+            return value * 0x4000000
+        }
+        if str.contains("mib") || str.contains("mb") {
+            return value * 0x10000
+        }
+        if str.contains("kib") || str.contains("kb") {
+            return value * 0x400
+        }
         return value
     }
 

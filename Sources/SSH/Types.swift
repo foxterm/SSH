@@ -145,3 +145,10 @@ public enum ContainerType: String, CaseIterable {
         rawValue
     }
 }
+
+public struct HostKeySupport {
+    /// 安全且推荐使用的算法列表（已按权重排序）
+    public let supported: [String]
+    /// 存在安全风险/已被弃用的算法列表（如 ssh-rsa, ssh-dss，已按权重排序）
+    public let insecure: [String]
+}

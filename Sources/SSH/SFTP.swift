@@ -43,7 +43,9 @@ public extension SFTP {
             mutex.unlock()
         }
         guard rawSession != nil else { return nil }
-        if _rawSFTP != nil { return _rawSFTP }
+        if _rawSFTP != nil {
+            return _rawSFTP
+        }
 
         // 如果未初始化，则调用 libssh2_sftp_init
         _rawSFTP = ssh.callSSH2 { [self] in
@@ -140,7 +142,9 @@ public extension SFTP {
         let components = path.components(separatedBy: "/")
         var currentPath = ""
         // 处理绝对路径开头
-        if path.hasPrefix("/") { currentPath = "/" }
+        if path.hasPrefix("/") {
+            currentPath = "/"
+        }
 
         for component in components where !component.isEmpty {
             if currentPath == "/" {
