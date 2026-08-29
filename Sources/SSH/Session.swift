@@ -56,11 +56,7 @@ public extension SSH {
             let key = Self.getHostKeyAlgorithms(session: rawSession)
             keyAlgorithms = (key.supported + key.insecure).joined(separator: ",")
         }
-        libssh2_session_method_pref(
-            rawSession,
-            LIBSSH2_METHOD_HOSTKEY,
-            keyAlgorithms
-        )
+        libssh2_session_method_pref(rawSession, LIBSSH2_METHOD_HOSTKEY, keyAlgorithms)
 
         // 执行底层握手
         let rec = await callSSH2 { [self] in
