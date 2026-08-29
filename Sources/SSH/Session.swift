@@ -81,15 +81,26 @@ public extension SSH {
 
     /// 获取主机密钥算法支持列表
     static func getHostKeyAlgorithms(session inputSession: OpaquePointer? = nil) -> HostKeySupport {
-        let priorityMap: [String: Int] = [
-            "ssh-ed25519-cert-v01@openssh.com": 1, "ssh-ed25519": 2,
-            "ecdsa-sha2-nistp256-cert-v01@openssh.com": 3, "ecdsa-sha2-nistp256": 4,
-            "ecdsa-sha2-nistp384-cert-v01@openssh.com": 5, "ecdsa-sha2-nistp384": 6,
-            "ecdsa-sha2-nistp521-cert-v01@openssh.com": 7, "ecdsa-sha2-nistp521": 8,
-            "rsa-sha2-512-cert-v01@openssh.com": 9, "rsa-sha2-512": 10,
-            "rsa-sha2-256-cert-v01@openssh.com": 11, "rsa-sha2-256": 12,
-            "ssh-rsa-cert-v01@openssh.com": 13, "ssh-rsa": 14, "ssh-dss": 15,
+        let preferredOrder = [
+            // Ed25519
+            "ssh-ed25519-cert-v01@openssh.com", "ssh-ed25519",
+
+            // High-security ECDSA
+            "ecdsa-sha2-nistp521-cert-v01@openssh.com", "ecdsa-sha2-nistp521",
+            "ecdsa-sha2-nistp384-cert-v01@openssh.com", "ecdsa-sha2-nistp384",
+
+            // High-security RSA
+            "rsa-sha2-512-cert-v01@openssh.com", "rsa-sha2-512",
+
+            // Standard ECDSA & RSA
+            "ecdsa-sha2-nistp256-cert-v01@openssh.com", "ecdsa-sha2-nistp256",
+            "rsa-sha2-256-cert-v01@openssh.com", "rsa-sha2-256",
+
+            // Deprecated / Insecure
+            "ssh-rsa-cert-v01@openssh.com", "ssh-rsa", "ssh-dss",
         ]
+
+        let priorityMap = Dictionary(uniqueKeysWithValues: preferredOrder.enumerated().map { ($0.element, $0.offset) })
         let insecureSet: Set = ["ssh-rsa-cert-v01@openssh.com", "ssh-rsa", "ssh-dss"]
 
         let session = inputSession ?? libssh2_session_init_ex(nil, nil, nil, nil)
@@ -109,10 +120,18 @@ public extension SSH {
             .compactMap { algs[$0].map { String(cString: $0) } }
             .sorted { (priorityMap[$0] ?? Int.max) < (priorityMap[$1] ?? Int.max) }
 
-        return HostKeySupport(
-            supported: sortedList.filter { !insecureSet.contains($0) },
-            insecure: sortedList.filter { insecureSet.contains($0) }
-        )
+        var supported: [String] = []
+        var insecure: [String] = []
+
+        for alg in sortedList {
+            if insecureSet.contains(alg) {
+                insecure.append(alg)
+            } else {
+                supported.append(alg)
+            }
+        }
+
+        return HostKeySupport(supported: supported, insecure: insecure)
     }
 
     /// 获取当前会话协商的算法方法名
