@@ -85,17 +85,30 @@ public extension SSH {
 
     static func getHostKeyAlgorithms(session inputSession: OpaquePointer? = nil) -> HostKeySupport {
         let priorityMap: [String: Int] = [
-            "ssh-ed25519": 1,
-            "ecdsa-sha2-nistp256": 2,
-            "ecdsa-sha2-nistp384": 3,
-            "ecdsa-sha2-nistp521": 4,
-            "rsa-sha2-512": 5,
-            "rsa-sha2-256": 6,
-            "ssh-rsa": 7,
-            "ssh-dss": 8,
+            // Ed25519（现代安全之最，证书优先）
+            "ssh-ed25519-cert-v01@openssh.com": 1,
+            "ssh-ed25519": 2,
+
+            // ECDSA（椭圆曲线，证书优先）
+            "ecdsa-sha2-nistp256-cert-v01@openssh.com": 3,
+            "ecdsa-sha2-nistp256": 4,
+            "ecdsa-sha2-nistp384-cert-v01@openssh.com": 5,
+            "ecdsa-sha2-nistp384": 6,
+            "ecdsa-sha2-nistp521-cert-v01@openssh.com": 7,
+            "ecdsa-sha2-nistp521": 8,
+
+            // RSA SHA-2（强 RSA，证书优先）
+            "rsa-sha2-512-cert-v01@openssh.com": 9,
+            "rsa-sha2-512": 10,
+            "rsa-sha2-256-cert-v01@openssh.com": 11,
+            "rsa-sha2-256": 12,
         ]
 
-        let insecureSet: Set = ["ssh-rsa", "ssh-dss"]
+        let insecureSet: Set = [
+            "ssh-rsa-cert-v01@openssh.com",
+            "ssh-rsa",
+            "ssh-dss",
+        ]
 
         let targetSession: OpaquePointer?
         let isCreatedLocally: Bool
