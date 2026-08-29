@@ -79,93 +79,40 @@ public extension SSH {
         return true
     }
 
+    /// 获取主机密钥算法支持列表
     static func getHostKeyAlgorithms(session inputSession: OpaquePointer? = nil) -> HostKeySupport {
         let priorityMap: [String: Int] = [
-            // Ed25519（现代安全之最，证书优先）
-            "ssh-ed25519-cert-v01@openssh.com": 1,
-            "ssh-ed25519": 2,
-
-            // ECDSA（椭圆曲线，证书优先）
-            "ecdsa-sha2-nistp256-cert-v01@openssh.com": 3,
-            "ecdsa-sha2-nistp256": 4,
-            "ecdsa-sha2-nistp384-cert-v01@openssh.com": 5,
-            "ecdsa-sha2-nistp384": 6,
-            "ecdsa-sha2-nistp521-cert-v01@openssh.com": 7,
-            "ecdsa-sha2-nistp521": 8,
-
-            // RSA SHA-2（强 RSA，证书优先）
-            "rsa-sha2-512-cert-v01@openssh.com": 9,
-            "rsa-sha2-512": 10,
-            "rsa-sha2-256-cert-v01@openssh.com": 11,
-            "rsa-sha2-256": 12,
+            "ssh-ed25519-cert-v01@openssh.com": 1, "ssh-ed25519": 2,
+            "ecdsa-sha2-nistp256-cert-v01@openssh.com": 3, "ecdsa-sha2-nistp256": 4,
+            "ecdsa-sha2-nistp384-cert-v01@openssh.com": 5, "ecdsa-sha2-nistp384": 6,
+            "ecdsa-sha2-nistp521-cert-v01@openssh.com": 7, "ecdsa-sha2-nistp521": 8,
+            "rsa-sha2-512-cert-v01@openssh.com": 9, "rsa-sha2-512": 10,
+            "rsa-sha2-256-cert-v01@openssh.com": 11, "rsa-sha2-256": 12,
+            "ssh-rsa-cert-v01@openssh.com": 13, "ssh-rsa": 14, "ssh-dss": 15,
         ]
+        let insecureSet: Set = ["ssh-rsa-cert-v01@openssh.com", "ssh-rsa", "ssh-dss"]
 
-        let insecureSet: Set = [
-            "ssh-rsa-cert-v01@openssh.com",
-            "ssh-rsa",
-            "ssh-dss",
-        ]
-
-        let targetSession: OpaquePointer?
-        let isCreatedLocally: Bool
-
-        if let session = inputSession {
-            targetSession = session
-            isCreatedLocally = false
-        } else {
-            targetSession = libssh2_session_init_ex(nil, nil, nil, nil)
-            isCreatedLocally = true
-        }
-
-        guard let session = targetSession else {
-            return HostKeySupport(supported: [], insecure: [])
-        }
-
+        let session = inputSession ?? libssh2_session_init_ex(nil, nil, nil, nil)
         defer {
-            if isCreatedLocally {
+            if inputSession == nil, let session {
                 libssh2_session_free(session)
             }
         }
+        guard let session else { return HostKeySupport(supported: [], insecure: []) }
 
-        var algsPtr: UnsafeMutablePointer<UnsafePointer<CChar>?>? = nil
+        var algsPtr: UnsafeMutablePointer<UnsafePointer<CChar>?>?
         let count = libssh2_session_supported_algs(session, LIBSSH2_METHOD_HOSTKEY, &algsPtr)
+        guard count > 0, let algs = algsPtr else { return HostKeySupport(supported: [], insecure: []) }
+        defer { libssh2_free(session, algsPtr) }
 
-        guard count > 0, let algs = algsPtr else {
-            return HostKeySupport(supported: [], insecure: [])
-        }
+        let sortedList = (0 ..< Int(count))
+            .compactMap { algs[$0].map { String(cString: $0) } }
+            .sorted { (priorityMap[$0] ?? Int.max) < (priorityMap[$1] ?? Int.max) }
 
-        defer {
-            libssh2_free(session, algsPtr)
-        }
-
-        var rawList: [String] = []
-        for i in 0 ..< Int(count) {
-            if let cString = algs[i] {
-                rawList.append(String(cString: cString))
-            }
-        }
-
-        let sortedList = rawList.sorted { a, b in
-            let priorityA = priorityMap[a] ?? Int.max
-            let priorityB = priorityMap[b] ?? Int.max
-            if priorityA != priorityB {
-                return priorityA < priorityB
-            }
-            return a < b
-        }
-
-        var supported: [String] = []
-        var insecure: [String] = []
-
-        for alg in sortedList {
-            if insecureSet.contains(alg) {
-                insecure.append(alg)
-            } else {
-                supported.append(alg)
-            }
-        }
-
-        return HostKeySupport(supported: supported, insecure: insecure)
+        return HostKeySupport(
+            supported: sortedList.filter { !insecureSet.contains($0) },
+            insecure: sortedList.filter { insecureSet.contains($0) }
+        )
     }
 
     /// 获取当前会话协商的算法方法名
