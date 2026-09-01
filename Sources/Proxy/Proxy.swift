@@ -65,8 +65,7 @@ public extension Proxy {
             }
             connectString += "Host: \(host):\(port)\r\n\r\n"
 
-            let bytes = connectString.bytes
-            guard fd.write(bytes, connectString.count) == connectString.count else { return false }
+            guard fd.write(connectString.bytes, connectString.count) == connectString.count else { return false }
 
             // HTTP 响应头通常以 \r\n\r\n 结尾，这里读取前 1024 字节校验状态码
             let buffer: Buffer<UInt8> = .init(0x400)
