@@ -90,14 +90,52 @@ public extension Socket {
                 if socket.fd < 0 {
                     return false
                 }
+
+                // 1. 设置套接字为非阻塞模式
+                let originalFlags = fcntl(socket.fd, F_GETFL, 0)
+                _ = fcntl(socket.fd, F_SETFL, originalFlags | O_NONBLOCK)
+
+                // 2. 发起连接
+                let connectResult = Darwin.connect(socket.fd, info.pointee.ai_addr, info.pointee.ai_addrlen)
+
+                if connectResult != 0 {
+                    if errno != EINPROGRESS {
+                        socket.close()
+                        socket.fd = -1
+                        return false
+                    }
+
+                    // 3. 使用 poll 监听 Socket 是否可写（poll 的超时单位是毫秒 ms）
+                    var pollFd = pollfd(fd: socket.fd, events: Int16(POLLOUT), revents: 0)
+                    let pollResult = poll(&pollFd, 1, Int32(timeout * 1000))
+
+                    // pollResult <= 0 说明超时(0)或出错(<0)
+                    if pollResult <= 0 {
+                        socket.close()
+                        socket.fd = -1
+                        return false
+                    }
+
+                    // 4. 检查 Socket 是否有错误
+                    var socketError: Int32 = 0
+                    var errorLength = socklen_t(MemoryLayout<Int32>.size)
+                    getsockopt(socket.fd, SOL_SOCKET, SO_ERROR, &socketError, &errorLength)
+
+                    if socketError != 0 {
+                        socket.close()
+                        socket.fd = -1
+                        return false
+                    }
+                }
+
+                // 5. 恢复套接字原来的阻塞标志
+                _ = fcntl(socket.fd, F_SETFL, originalFlags)
+
+                // 6. 为后续读写设置 Socket 选项
                 var timeoutStruct = Darwin.timeval(tv_sec: timeout, tv_usec: 0)
                 setsockopt(socket.fd, SOL_SOCKET, SO_SNDTIMEO, &timeoutStruct, socklen_t(MemoryLayout<Darwin.timeval>.size))
                 setsockopt(socket.fd, SOL_SOCKET, SO_RCVTIMEO, &timeoutStruct, socklen_t(MemoryLayout<Darwin.timeval>.size))
-                if Darwin.connect(socket.fd, info.pointee.ai_addr, info.pointee.ai_addrlen) != 0 {
-                    socket.close()
-                    socket.fd = -1
-                    return false
-                }
+
                 let buf: Buffer<CChar> = .init(Int(NI_MAXHOST))
                 guard Darwin.getnameinfo(info.pointee.ai_addr, info.pointee.ai_addrlen, buf.buffer, socklen_t(buf.count), nil, 0, NI_NUMERICHOST) == 0 else {
                     socket.close()
@@ -109,6 +147,25 @@ public extension Socket {
             }
             return socket
         }
+    }
+
+    // 设置套接字为阻塞或非阻塞模式
+    //
+    // - Parameter isBlocking: `true` 表示阻塞模式，`false` 表示非阻塞模式。
+    // - Returns: 操作成功返回 `true`，失败返回 `false`。
+
+    func setBlocking(_ isBlocking: Bool) -> Bool {
+        guard fd >= 0 else { return false }
+        let flags = fcntl(fd, F_GETFL, 0)
+        guard flags >= 0 else { return false }
+
+        let newFlags = isBlocking ? (flags & ~O_NONBLOCK) : (flags | O_NONBLOCK)
+        return fcntl(fd, F_SETFL, newFlags) != -1
+    }
+
+    /// 将套接字设置为非阻塞模式
+    func setNonBlocking() -> Bool {
+        setBlocking(false)
     }
 
     /// Sends data through the socket.

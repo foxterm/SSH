@@ -97,8 +97,7 @@ public extension SSH {
         }
 
         // 调用 libssh2_poll 阻塞等待事件或超时
-        let rc = libssh2_poll(&pollFd, 1, 10)
-
+        let rc = libssh2_poll(&pollFd, 1, 20)
         if rc < 0 {
             // Poll 出错
             return false

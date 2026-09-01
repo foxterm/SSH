@@ -30,11 +30,12 @@ public extension Proxy {
         guard socket.isConnected else {
             return .init()
         }
-
+        socket.setBlocking(true)
         for ip in await IP.resolveDomainName(host) {
             guard connect(socket, ip, port) else {
                 continue
             }
+            socket.setBlocking(false)
             return socket
         }
         socket.close()
