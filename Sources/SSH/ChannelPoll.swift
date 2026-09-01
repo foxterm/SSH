@@ -246,7 +246,7 @@ extension ChannelPoll {
                     }
                 }
 
-                if hasReadError || hasWriteError || isEofReached || (revents & (LIBSSH2_POLLFD_POLLERR | LIBSSH2_POLLFD_POLLHUP | LIBSSH2_POLLFD_CHANNEL_CLOSED)) != 0 {
+                if hasReadError || hasWriteError || isEofReached || (revents & (LIBSSH2_POLLFD_POLLERR | LIBSSH2_POLLFD_POLLHUP)) != 0 {
                     tasksToRemove.insert(task.handle)
                     continue
                 }
