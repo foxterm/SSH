@@ -284,7 +284,7 @@ public extension SSH {
     func freeSession() {
         timer?.cancel()
         timer = nil
-        channelPoll.mutex.with {
+        channelPoll.mutex.withLock {
             guard rawSession != nil else { return }
 
             // 切换回阻塞模式以确保优雅退出

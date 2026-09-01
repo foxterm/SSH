@@ -8,7 +8,7 @@ import Foundation
 
 /// SFTP 客户端类，封装了基于 libssh2 的文件传输协议操作
 public class SFTP {
-    let mutex: Mutex = .init()
+    let mutex: NSLock = .init()
     /// 内部持有的 libssh2 SFTP 会话原始指针
     public internal(set) var _rawSFTP: OpaquePointer?
     public internal(set) var handle: OpaquePointer?

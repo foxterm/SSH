@@ -20,6 +20,9 @@ class ChannelStream {
     var writeBuffer = [UInt8]()
     var writeBufferOffset = 0
 
+    /// 线程安全与生命周期控制标记，避免外部注销或释放句柄后引发悬空指针闪退
+    var isCancelled: Bool = false
+
     init(
         handle: OpaquePointer, output: OutputStream, outerr: OutputStream?, write: InputStream?,
         continuation: CheckedContinuation<Void, Never>?, totalSize: Int64,
@@ -51,7 +54,7 @@ class ChannelPoll {
     var bufferSize = 0x10000 // 64KB
     let queue = DispatchQueue(label: "app.foxterm.channeltask.queue")
     var _isLooping: Bool = false
-    let mutex: Mutex = .init()
+    let mutex: NSLock = .init()
 
     private var _tasks: [OpaquePointer: ChannelStream] = [:]
 }
@@ -73,7 +76,7 @@ extension ChannelPoll {
                 onProgress: progress
             )
 
-            mutex.with {
+            mutex.withLock {
                 _tasks[handle] = task
                 if !_isLooping {
                     _isLooping = true
@@ -91,44 +94,57 @@ extension ChannelPoll {
 
     func runMasterLoop() {
         defer {
-            mutex.with { _isLooping = false }
+            mutex.withLock { _isLooping = false }
         }
 
         let data: Buffer<CChar> = .init(bufferSize)
         var progressTracker: [OpaquePointer: Int64] = [:]
 
         while true {
-            let currentTasks = mutex.with { Array(_tasks.values) }
+            // 1. 在锁保护下提取有效（未取消）的 Task
+            let currentTasks = mutex.withLock {
+                _tasks.values.filter { !$0.isCancelled }
+            }
             if currentTasks.isEmpty {
                 break
             }
 
-            // 1. 构建 LIBSSH2_POLLFD 数组
+            // 2. 构建 LIBSSH2_POLLFD 数组，并做二次合法性校验
+            var validTasks: [ChannelStream] = []
             var pollFds: [LIBSSH2_POLLFD] = []
             pollFds.reserveCapacity(currentTasks.count)
 
-            for t in currentTasks {
-                setupStreams(for: t)
+            mutex.withLock {
+                for t in currentTasks {
+                    guard let existingTask = _tasks[t.handle], !existingTask.isCancelled else { continue }
 
-                var pollFd = LIBSSH2_POLLFD()
-                pollFd.type = LIBSSH2_POLLFD_CHANNEL.uint8
-                pollFd.fd.channel = t.handle
+                    setupStreams(for: existingTask)
 
-                // 默认监听 Read 和 Ext(Stderr)
-                var events = LIBSSH2_POLLFD_POLLIN | LIBSSH2_POLLFD_POLLEXT
-                if t.hasPendingWrite || (t.write?.hasBytesAvailable == true) {
-                    events |= LIBSSH2_POLLFD_POLLOUT
+                    var pollFd = LIBSSH2_POLLFD()
+                    pollFd.type = LIBSSH2_POLLFD_CHANNEL.uint8
+                    pollFd.fd.channel = existingTask.handle
+
+                    var events = LIBSSH2_POLLFD_POLLIN | LIBSSH2_POLLFD_POLLEXT
+                    if existingTask.hasPendingWrite || (existingTask.write?.hasBytesAvailable == true) {
+                        events |= LIBSSH2_POLLFD_POLLOUT
+                    }
+
+                    pollFd.events = events.uint
+                    pollFd.revents = 0
+
+                    pollFds.append(pollFd)
+                    validTasks.append(existingTask)
                 }
-
-                pollFd.events = events.uint
-                pollFd.revents = 0
-                pollFds.append(pollFd)
             }
 
-            // 2. 调用 libssh2_poll (超时 10ms)
+            if validTasks.isEmpty {
+                break
+            }
+
+            // 3. 调用 libssh2_poll (超时 10ms)
             let pollRc = pollFds.withUnsafeMutableBufferPointer { bp -> Int32 in
-                guard let baseAddress = bp.baseAddress else { return 0 }
-                return mutex.with {
+                guard let baseAddress = bp.baseAddress, bp.count > 0 else { return 0 }
+                return mutex.withLock {
                     libssh2_poll(baseAddress, UInt32(bp.count), 10)
                 }
             }
@@ -140,8 +156,21 @@ extension ChannelPoll {
 
             var tasksToRemove = Set<OpaquePointer>()
 
-            // 3. 处理轮询事件响应
-            for (idx, task) in currentTasks.enumerated() {
+            // 4. 处理轮询事件响应
+            for (idx, task) in validTasks.enumerated() {
+                // 读取/写入前校验：防范 poll 阻塞 10ms 期间外部触发了注销
+                let isTaskAlive = mutex.withLock {
+                    if let t = _tasks[task.handle], !t.isCancelled {
+                        return true
+                    }
+                    return false
+                }
+
+                if !isTaskAlive {
+                    tasksToRemove.insert(task.handle)
+                    continue
+                }
+
                 let revents = pollFds[idx].revents.int32
                 let isTimeout = (pollRc == 0)
 
@@ -165,7 +194,10 @@ extension ChannelPoll {
                             hasReadError = true
                         }
                     } else if r == 0 {
-                        if mutex.with({ libssh2_channel_eof(task.handle) }) != 0 {
+                        let eofRc = mutex.withLock {
+                            (_tasks[task.handle] != nil && !_tasks[task.handle]!.isCancelled) ? libssh2_channel_eof(task.handle) : 0
+                        }
+                        if eofRc != 0 {
                             isEofReached = true
                         }
                     } else {
@@ -187,7 +219,7 @@ extension ChannelPoll {
                 }
 
                 // 处理写入
-                if canWrite {
+                if canWrite && !hasReadError && !isEofReached {
                     let w = write(data: data, task: task)
                     if w < 0 {
                         if w != LIBSSH2_ERROR_EAGAIN {
@@ -224,7 +256,7 @@ extension ChannelPoll {
     }
 
     private func cleanupAll() {
-        let allHandles = mutex.with { Array(_tasks.keys) }
+        let allHandles = mutex.withLock { Array(_tasks.keys) }
         if !allHandles.isEmpty {
             remove(allHandles)
         }
@@ -243,7 +275,7 @@ extension ChannelPoll {
     }
 
     func remove(_ tasksToRemove: [OpaquePointer]) {
-        mutex.with {
+        mutex.withLock {
             if tasksToRemove.isEmpty {
                 return
             }
@@ -251,6 +283,7 @@ extension ChannelPoll {
             var removedTasks: [ChannelStream] = []
             for handle in tasksToRemove {
                 if let task = _tasks.removeValue(forKey: handle) {
+                    task.isCancelled = true
                     removedTasks.append(task)
                 }
             }
@@ -260,12 +293,16 @@ extension ChannelPoll {
                 t.outerr?.close()
                 t.write?.close()
                 t.continuation?.resume()
+                t.continuation = nil
             }
         }
     }
 
     func read(data: Buffer<CChar>, handle: OpaquePointer, output: OutputStream, stream_id: Int32) -> Int64 {
-        let n = mutex.with { libssh2_channel_read_ex(handle, stream_id, data.buffer, data.count) }
+        let n = mutex.withLock { () -> Int in
+            guard let task = _tasks[handle], !task.isCancelled else { return -1 }
+            return libssh2_channel_read_ex(handle, stream_id, data.buffer, data.count)
+        }
         if n > 0 {
             output.write(data.buffer, maxLength: n)
             return n.int64
@@ -283,8 +320,9 @@ extension ChannelPoll {
             let rc = task.writeBuffer.withUnsafeBufferPointer { bp -> Int in
                 guard let baseAddr = bp.baseAddress else { return 0 }
                 let ptr = baseAddr.advanced(by: task.writeBufferOffset)
-                return mutex.with {
-                    libssh2_channel_write_ex(task.handle, 0, ptr, pendingCount)
+                return mutex.withLock { () -> Int in
+                    guard let t = _tasks[task.handle], !t.isCancelled else { return -1 }
+                    return libssh2_channel_write_ex(task.handle, 0, ptr, pendingCount)
                 }
             }
 
@@ -306,8 +344,9 @@ extension ChannelPoll {
 
         let nread = input.read(data.buffer, maxLength: data.count)
         if nread > 0 {
-            let written = mutex.with {
-                libssh2_channel_write_ex(task.handle, 0, data.buffer, nread)
+            let written = mutex.withLock { () -> Int in
+                guard let t = _tasks[task.handle], !t.isCancelled else { return -1 }
+                return libssh2_channel_write_ex(task.handle, 0, data.buffer, nread)
             }
 
             if written > 0 {

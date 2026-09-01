@@ -119,7 +119,7 @@ public extension SSH {
     func closeSocket() {
         // 先停止读取流
         shutdown(.r)
-        channelPoll.mutex.with {
+        channelPoll.mutex.withLock {
             shutdown(.rw)
             #if DEBUG
                 print("♻️", "Socket 连接已彻底释放")

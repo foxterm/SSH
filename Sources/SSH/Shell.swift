@@ -166,14 +166,16 @@ public extension Shell {
 
     /// 关闭 Shell 会话并释放关联资源
     func closeShell() {
-        writeInputStream?.close()
-        writeOutputStream?.close()
-        readOutputStream?.close()
-        errorOutputStream?.close()
         if channel.sendEof() {
             channel.waitEOF()
         }
         channel.closeChannel()
+
+        writeInputStream?.close()
+        writeOutputStream?.close()
+        readOutputStream?.close()
+        errorOutputStream?.close()
+
         shellDelegate?.disconnect(shell: self)
         shellDelegate = nil
         #if DEBUG
