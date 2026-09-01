@@ -116,13 +116,6 @@ public extension SSH {
     /// 彻底关闭并释放 Socket 资源
     /// 包含互斥锁保护以确保线程安全，并释放 SSL 上下文
     func closeSocket() {
-        // 先停止读取流
-        shutdown(.r)
-        channelPoll.mutex.withLock {
-            shutdown(.rw)
-            #if DEBUG
-                print("♻️", "Socket 连接已彻底释放")
-            #endif
-        }
+        shutdown(.rw)
     }
 }

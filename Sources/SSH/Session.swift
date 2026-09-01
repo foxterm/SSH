@@ -284,6 +284,7 @@ public extension SSH {
     func freeSession() {
         timer?.cancel()
         timer = nil
+        shutdown(.r)
         channelPoll.mutex.withLock {
             guard rawSession != nil else { return }
 

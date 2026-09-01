@@ -50,9 +50,6 @@ public extension Shell {
 
         // 设置渠道为非阻塞模式，以便进行轮询
         libssh2_channel_set_blocking(rawChannel, 0)
-
-        // 通知代理并开始轮询远程输出
-        shellDelegate?.shell(shell: self)
         setupStreamsAndRegister()
 
         // 1. 请求伪终端 (PTY)
@@ -75,6 +72,9 @@ public extension Shell {
             closeShell()
             return false
         }
+
+        // 通知代理并开始轮询远程输出
+        shellDelegate?.shell(shell: self)
         return true
     }
 
