@@ -82,7 +82,7 @@ public extension SSH {
     }
 
     /// 等待套接字就绪（配合 libssh2 的非阻塞 IO）
-    func waitSocket(timeoutMs: Int32 = 250) -> Bool {
+    func waitSocket() -> Bool {
         guard rawSession != nil, fd >= 0 else {
             return false
         }
@@ -110,7 +110,7 @@ public extension SSH {
         }
 
         // 调用 libssh2_poll 阻塞等待事件或超时
-        let rc = libssh2_poll(&pollFd, 1, timeoutMs.int)
+        let rc = libssh2_poll(&pollFd, 1, 10)
 
         if rc < 0 {
             // Poll 出错
