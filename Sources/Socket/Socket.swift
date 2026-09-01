@@ -176,6 +176,7 @@ public extension Socket {
     ///   - flags: Optional flags to modify the behavior of the send operation. Defaults to 0.
     ///
     /// - Returns: The number of bytes sent on success, or a negative error code on failure.
+    @inline(__always)
     func send(_ buffer: UnsafeRawPointer, _ length: Int, _ flags: Int32 = 0) -> Int {
         let size = Darwin.send(fd, buffer, length, flags)
         if size < 0 {
@@ -184,13 +185,15 @@ public extension Socket {
         return size
     }
 
-    /// Receives data from the socket.
-    ///
-    /// - Parameters:
-    ///   - buffer: A pointer to a buffer where the received data will be stored.
-    ///   - length: The maximum number of bytes to receive.
-    ///   - flags: The flags to control the behavior of the receive function. Defaults to 0.
-    /// - Returns: The number of bytes received, or a negative error code if the receive operation fails.
+    // Receives data from the socket.
+    //
+    // - Parameters:
+    //   - buffer: A pointer to a buffer where the received data will be stored.
+    //   - length: The maximum number of bytes to receive.
+    //   - flags: The flags to control the behavior of the receive function. Defaults to 0.
+    // - Returns: The number of bytes received, or a negative error code if the receive operation fails.
+
+    @inline(__always)
     func recv(_ buffer: UnsafeMutableRawPointer, _ length: Int, _ flags: Int32 = 0) -> Int {
         let size = Darwin.recv(fd, buffer, length, flags)
         if size < 0 {
@@ -205,6 +208,7 @@ public extension Socket {
     ///   - buffer: A pointer to the buffer where the read data will be stored.
     ///   - len: The maximum number of bytes to read.
     /// - Returns: The number of bytes actually read, or a negative value if an error occurred.
+    @inline(__always)
     func read(_ buffer: UnsafeMutableRawPointer, _ len: Int) -> Int {
         Darwin.read(fd, buffer, len)
     }
@@ -215,6 +219,7 @@ public extension Socket {
     ///   - buffer: A pointer to the data to be written.
     ///   - len: The number of bytes to write from the buffer.
     /// - Returns: The number of bytes that were written, or a negative value if an error occurred.
+    @inline(__always)
     func write(_ buffer: UnsafeRawPointer, _ len: Int) -> Int {
         Darwin.write(fd, buffer, len)
     }
