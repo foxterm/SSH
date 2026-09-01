@@ -15,7 +15,10 @@ class ChannelStream {
     var continuation: CheckedContinuation<Void, Never>?
     var totalSize: Int64 = 0
     var onProgress: ((_ current: Int64, _ total: Int64) -> Bool)?
+
+    // 💡 基于游标的环形/偏移 Buffer，避免 removeFirst 的 O(N) 内存拷贝
     var writeBuffer = [UInt8]()
+    var writeBufferOffset = 0
 
     init(
         handle: OpaquePointer, output: OutputStream, outerr: OutputStream?, write: InputStream?,
@@ -30,15 +33,28 @@ class ChannelStream {
         self.totalSize = totalSize
         self.onProgress = onProgress
     }
+
+    var hasPendingWrite: Bool {
+        writeBufferOffset < writeBuffer.count
+    }
+
+    func appendWriteData(from pointer: UnsafePointer<UInt8>, count: Int) {
+        if writeBufferOffset > 0, writeBufferOffset == writeBuffer.count {
+            writeBuffer.removeAll(keepingCapacity: true)
+            writeBufferOffset = 0
+        }
+        writeBuffer.append(contentsOf: UnsafeBufferPointer(start: pointer, count: count))
+    }
 }
 
 class ChannelPoll {
     var socketFD: Int32 = -1
-    var bufferSize = 0x10000
+    var bufferSize = 0x10000 // 64KB
     let queue = DispatchQueue(label: "app.foxterm.channeltask.queue")
     var _isLooping: Bool = false
     let mutex: Mutex = .init()
-    private var _tasks: [ChannelStream] = []
+
+    private var _tasks: [OpaquePointer: ChannelStream] = [:]
 }
 
 extension ChannelPoll {
@@ -59,7 +75,7 @@ extension ChannelPoll {
             )
 
             mutex.with {
-                _tasks.append(task)
+                _tasks[handle] = task
                 if !_isLooping {
                     _isLooping = true
                     queue.async { [weak self] in
@@ -70,7 +86,6 @@ extension ChannelPoll {
         }
     }
 
-    /// 外部主动取消（如关闭标签页、中断长命令）时的强行注销与解挂接口
     func unregister(handle: OpaquePointer) {
         remove([handle])
     }
@@ -79,72 +94,71 @@ extension ChannelPoll {
         defer {
             mutex.with { _isLooping = false }
         }
+
         let data: Buffer<CChar> = .init(bufferSize)
         var progressTracker: [OpaquePointer: Int64] = [:]
+
         while true {
-            // 拿到当前的引用列表
-            let currentTasks = mutex.with { _tasks }
+            let currentTasks = mutex.with { Array(_tasks.values) }
             if currentTasks.isEmpty {
                 break
             }
 
-            var pollFd = pollfd()
-            pollFd.fd = socketFD
-            pollFd.events = 0
-            pollFd.revents = 0
+            // 1. 构建 LIBSSH2_POLLFD 数组
+            var pollFds: [LIBSSH2_POLLFD] = []
+            pollFds.reserveCapacity(currentTasks.count)
 
-            var wantsRead = false
-            var wantsWrite = false
             for t in currentTasks {
                 setupStreams(for: t)
 
-                // 只要通道在运行，默认都需要监听读（包括标准输出和标准错误）
-                wantsRead = true
+                var pollFd = LIBSSH2_POLLFD()
+                pollFd.type = LIBSSH2_POLLFD_CHANNEL.uint8
+                pollFd.fd.channel = t.handle
 
-                // 检查是否有数据等待写入
-                if !t.writeBuffer.isEmpty || (t.write?.hasBytesAvailable == true) {
-                    wantsWrite = true
+                // 默认监听 Read 和 Ext(Stderr)
+                var events = LIBSSH2_POLLFD_POLLIN | LIBSSH2_POLLFD_POLLEXT
+                if t.hasPendingWrite || (t.write?.hasBytesAvailable == true) {
+                    events |= LIBSSH2_POLLFD_POLLOUT
+                }
+
+                pollFd.events = events.uint
+                pollFd.revents = 0
+                pollFds.append(pollFd)
+            }
+
+            // 2. 调用 libssh2_poll (超时 10ms)
+            let pollRc = pollFds.withUnsafeMutableBufferPointer { bp -> Int32 in
+                guard let baseAddress = bp.baseAddress else { return 0 }
+                return mutex.with {
+                    libssh2_poll(baseAddress, UInt32(bp.count), 10)
                 }
             }
-            if wantsRead {
-                pollFd.events |= POLLIN.int16 | POLLPRI.int16
-            }
-            if wantsWrite {
-                pollFd.events |= POLLOUT.int16
-            }
 
-            let pollRc = poll(&pollFd, 1, 10)
             if pollRc < 0 {
-                if errno != EINTR {
-                    cleanupAll()
-                    break
-                }
-                // cleanupAll()
-                continue
-            }
-            let sysRevents = pollFd.revents
-            // 发生错误或挂断
-            if (sysRevents & POLLERR.int16) != 0 || (sysRevents & POLLHUP.int16) != 0 {
                 cleanupAll()
                 break
             }
-            // if pollRc == 0 { continue }
-            let isTimeout = pollRc == 0
-            let canRead = isTimeout || (sysRevents & (POLLIN.int16 | POLLPRI.int16)) != 0
-            let canWrite = isTimeout || (sysRevents & POLLOUT.int16) != 0
-
-            if !canRead, !canWrite {
-                continue
-            }
 
             var tasksToRemove = Set<OpaquePointer>()
-            for task in currentTasks {
+
+            // 3. 处理轮询事件响应
+            for (idx, task) in currentTasks.enumerated() {
+                let revents = pollFds[idx].revents.int32
+                let isTimeout = (pollRc == 0)
+
+                let canRead = isTimeout || (revents & (LIBSSH2_POLLFD_POLLIN | LIBSSH2_POLLFD_POLLEXT)) != 0
+                let canWrite = isTimeout || (revents & LIBSSH2_POLLFD_POLLOUT) != 0
+
+                if !canRead && !canWrite && (revents & (LIBSSH2_POLLFD_POLLEXT | LIBSSH2_POLLFD_POLLERR | LIBSSH2_POLLFD_POLLHUP)) == 0 {
+                    continue
+                }
+
                 var currentIncrement: Int64 = 0
                 var hasReadError = false
                 var hasWriteError = false
                 var isEofReached = false
 
-                // 1. 先处理读取
+                // 读取 stdout
                 if canRead {
                     let r = read(data: data, handle: task.handle, output: task.output, stream_id: 0)
                     if r < 0 {
@@ -152,7 +166,7 @@ extension ChannelPoll {
                             hasReadError = true
                         }
                     } else if r == 0 {
-                        if libssh2_channel_eof(task.handle) != 0 {
+                        if mutex.with({ libssh2_channel_eof(task.handle) }) != 0 {
                             isEofReached = true
                         }
                     } else {
@@ -160,7 +174,7 @@ extension ChannelPoll {
                     }
                 }
 
-                // 2. 处理标准错误
+                // 读取 stderr
                 if canRead && !hasReadError && !isEofReached, let outerr = task.outerr {
                     let r = read(data: data, handle: task.handle, output: outerr, stream_id: 1)
                     if r < 0 {
@@ -173,7 +187,7 @@ extension ChannelPoll {
                     }
                 }
 
-                // 3. 处理写入
+                // 处理写入
                 if canWrite {
                     let w = write(data: data, task: task)
                     if w < 0 {
@@ -185,7 +199,7 @@ extension ChannelPoll {
                     }
                 }
 
-                // 4. 更新进度
+                // 进度与清理判断
                 if currentIncrement > 0 {
                     let total = (progressTracker[task.handle] ?? 0) + currentIncrement
                     progressTracker[task.handle] = total
@@ -194,34 +208,25 @@ extension ChannelPoll {
                         continue
                     }
                 }
-                // 发生实质性错误，移出队列
-                if hasReadError || hasWriteError {
-                    tasksToRemove.insert(task.handle)
-                    continue
-                }
 
-                // 只有满足 EOF 且数据完全排空，才移出队列
-                if isEofReached {
+                if hasReadError || hasWriteError || isEofReached || (revents & (LIBSSH2_POLLFD_POLLERR | LIBSSH2_POLLFD_POLLHUP)) != 0 {
                     tasksToRemove.insert(task.handle)
                     continue
                 }
             }
 
             if !tasksToRemove.isEmpty {
-                let toRemove = Array(tasksToRemove)
-                toRemove.forEach { progressTracker.removeValue(forKey: $0) }
-                remove(toRemove)
+                for handle in tasksToRemove {
+                    progressTracker.removeValue(forKey: handle)
+                }
+                remove(Array(tasksToRemove))
             }
         }
     }
 
-    /// 当发生系统级网络错误（poll 返回 < 0）时，强制清理所有当前正在运行的任务
     private func cleanupAll() {
-        let allHandles = mutex.with { _tasks.map(\.handle) }
+        let allHandles = mutex.with { Array(_tasks.keys) }
         if !allHandles.isEmpty {
-            #if DEBUG
-                print("🚨 触发全局清理，正在移除 \(allHandles.count) 个任务")
-            #endif
             remove(allHandles)
         }
     }
@@ -244,16 +249,11 @@ extension ChannelPoll {
                 return
             }
 
-            #if DEBUG
-                for handle in tasksToRemove {
-                    print("🚨 准备移除 Handle: \(handle), 当前任务总数: \(_tasks.count)")
-                }
-            #endif
-
             var removedTasks: [ChannelStream] = []
-            removedTasks = _tasks.filter { tasksToRemove.contains($0.handle) }
-            _tasks.removeAll { task in
-                tasksToRemove.contains(task.handle)
+            for handle in tasksToRemove {
+                if let task = _tasks.removeValue(forKey: handle) {
+                    removedTasks.append(task)
+                }
             }
 
             for t in removedTasks {
@@ -265,13 +265,11 @@ extension ChannelPoll {
         }
     }
 
-    func read(data: Buffer<CChar>, handle: OpaquePointer, output: OutputStream, stream_id: Int32)
-        -> Int64
-    {
+    func read(data: Buffer<CChar>, handle: OpaquePointer, output: OutputStream, stream_id: Int32) -> Int64 {
         let n = mutex.with { libssh2_channel_read_ex(handle, stream_id, data.buffer, data.count) }
         if n > 0 {
             output.write(data.buffer, maxLength: n)
-            return n.int64 // 💡 显式强转成统一的 Int
+            return n.int64
         } else if n == LIBSSH2_ERROR_EAGAIN {
             return 0
         } else {
@@ -280,56 +278,49 @@ extension ChannelPoll {
     }
 
     func write(data: Buffer<CChar>, task: ChannelStream) -> Int64 {
-        // 1. 如果之前有残留未发完的数据，优先发送残留数据
-        if !task.writeBuffer.isEmpty {
-            let remainingData = task.writeBuffer
-            let rc = mutex.with {
-                libssh2_channel_write_ex(task.handle, 0, remainingData, remainingData.count)
+        if task.hasPendingWrite {
+            let pendingCount = task.writeBuffer.count - task.writeBufferOffset
+
+            let rc = task.writeBuffer.withUnsafeBufferPointer { bp -> Int in
+                guard let baseAddr = bp.baseAddress else { return 0 }
+                let ptr = baseAddr.advanced(by: task.writeBufferOffset)
+                return mutex.with {
+                    libssh2_channel_write_ex(task.handle, 0, ptr, pendingCount)
+                }
             }
 
             if rc > 0 {
-                if rc >= remainingData.count {
+                task.writeBufferOffset += rc
+                if task.writeBufferOffset >= task.writeBuffer.count {
                     task.writeBuffer.removeAll(keepingCapacity: true)
-                    return rc.int64
-                } else {
-                    task.writeBuffer.removeFirst(rc)
-                    return rc.int64
+                    task.writeBufferOffset = 0
                 }
+                return rc.int64
             } else if rc == LIBSSH2_ERROR_EAGAIN {
-                return 0 // 缓冲区依然满，直接退回主循环，不卡死线程
+                return 0
             } else {
-                return -1 // 真正发生错误
+                return -1
             }
         }
 
-        // 2. 之前没有残留数据，从 InputStream 读取新数据
         guard let input = task.write, input.hasBytesAvailable else { return 0 }
 
         let nread = input.read(data.buffer, maxLength: data.count)
         if nread > 0 {
-            // 💡 只调用一次，绝不用 while 循环死等！
             let written = mutex.with {
                 libssh2_channel_write_ex(task.handle, 0, data.buffer, nread)
             }
 
             if written > 0 {
                 if written < nread {
-                    // 如果只写了一部分，把没写完的塞进该任务自己的 writeBuffer 缓存起来
                     let leftCount = nread - written
-                    let pointer = UnsafeRawPointer(data.buffer).advanced(by: written)
-                    let leftData = pointer.bindMemory(to: UInt8.self, capacity: leftCount)
-                    task.writeBuffer.append(
-                        contentsOf: Array(UnsafeBufferPointer(start: leftData, count: leftCount))
-                    )
+                    let rawPtr = UnsafeRawPointer(data.buffer).advanced(by: written).assumingMemoryBound(to: UInt8.self)
+                    task.appendWriteData(from: rawPtr, count: leftCount)
                 }
                 return written.int64
             } else if written == LIBSSH2_ERROR_EAGAIN {
-                let rawData = UnsafeRawPointer(data.buffer).bindMemory(
-                    to: UInt8.self, capacity: nread
-                )
-                task.writeBuffer.append(
-                    contentsOf: Array(UnsafeBufferPointer(start: rawData, count: nread))
-                )
+                let rawPtr = UnsafeRawPointer(data.buffer).assumingMemoryBound(to: UInt8.self)
+                task.appendWriteData(from: rawPtr, count: nread)
                 return 0
             } else {
                 return -1
