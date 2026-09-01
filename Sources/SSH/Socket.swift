@@ -82,8 +82,8 @@ public extension SSH {
     }
 
     /// 等待套接字就绪（配合 libssh2 的非阻塞 IO）
-    func waitSocket() -> Bool {
-        guard rawSession != nil else {
+    func waitSocket(timeoutMs: Int32 = 250) -> Bool {
+        guard rawSession != nil, fd >= 0 else {
             return false
         }
 
@@ -95,9 +95,27 @@ public extension SSH {
             return true
         }
 
-        // 彻底废弃 poll 避免闪退，直接休眠 10 毫秒（10,000 微秒）
-        // 这会将当前线程的 CPU 时间片让出，防止无脑空转
-        usleep(10000)
+        var pollFd = LIBSSH2_POLLFD()
+        pollFd.type = LIBSSH2_POLLFD_SOCKET.uint8
+        pollFd.fd.socket = fd
+        pollFd.events = 0
+        pollFd.revents = 0
+
+        // 根据方向设置需要监听的事件
+        if (dir & LIBSSH2_SESSION_BLOCK_INBOUND) != 0 {
+            pollFd.events |= LIBSSH2_POLLFD_POLLIN.uint
+        }
+        if (dir & LIBSSH2_SESSION_BLOCK_OUTBOUND) != 0 {
+            pollFd.events |= LIBSSH2_POLLFD_POLLOUT.uint
+        }
+
+        // 调用 libssh2_poll 阻塞等待事件或超时
+        let rc = libssh2_poll(&pollFd, 1, timeoutMs.int)
+
+        if rc < 0 {
+            // Poll 出错
+            return false
+        }
 
         // 返回 true 让 libssh2 继续尝试执行下一步非阻塞操作
         return true
