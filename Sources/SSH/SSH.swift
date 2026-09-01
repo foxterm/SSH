@@ -18,7 +18,7 @@ public class SSH {
     public let host: String
     public internal(set) var user: String = ""
     public let port: Int
-    /// 连接超时时间（毫秒）
+    /// 连接超时时间（秒）
     public let timeout: Int
     /// 是否开启 zlib 压缩
     public let compress: Bool
@@ -98,12 +98,12 @@ public class SSH {
     }
 
     public init(
-        host: String, port: Int, compress: Bool = false, timeout: Int = 10 * 1000,
+        host: String, port: Int, compress: Bool = false, timeout: Int = 10,
         banner: String = SSH.banner
     ) {
         self.host = host
         self.port = port
-        self.timeout = timeout > 0 ? timeout : 10 * 1000
+        self.timeout = timeout > 0 ? timeout : 10
         self.compress = compress
         // 确保 Banner 格式符合 SSH 规范（必须以 SSH- 开头）
         clientbanner = !banner.isEmpty && banner.hasPrefix("SSH-") ? banner : SSH.banner
