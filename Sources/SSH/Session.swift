@@ -47,7 +47,7 @@ public extension SSH {
         // 配置会话选项
         libssh2_session_flag(rawSession, LIBSSH2_FLAG_COMPRESS, compress ? 1 : 0)
         libssh2_session_flag(rawSession, LIBSSH2_FLAG_QUOTE_PATHS, 1)
-        libssh2_session_set_timeout(rawSession, timeout)
+        libssh2_session_set_timeout(rawSession, timeout * 1000)
         libssh2_session_banner_set(rawSession, clientbanner)
 
         var keyAlgorithms = hostKeyAlgorithms
@@ -192,15 +192,15 @@ public extension SSH {
         }
     }
 
-    /// 获取或设置会话超时时间 (毫秒)
+    /// 获取或设置会话超时时间 (秒)
     var sessionTimeout: Int {
         get {
             guard rawSession != nil else { return 0 }
-            return libssh2_session_get_timeout(rawSession)
+            return libssh2_session_get_timeout(rawSession) / 1000
         }
         set {
             guard rawSession != nil else { return }
-            libssh2_session_set_timeout(rawSession, newValue)
+            libssh2_session_set_timeout(rawSession, newValue * 1000)
         }
     }
 
