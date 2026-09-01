@@ -123,21 +123,6 @@ public enum StreamType: String, CaseIterable {
     }
 }
 
-/// Socket 关闭方向控制（半关闭）
-public enum Shout: Int32, CustomStringConvertible {
-    case read = 0
-    case write = 1
-    case readWrite = 2
-
-    public var description: String {
-        switch self {
-        case .read: "Read Only"
-        case .write: "Write Only"
-        case .readWrite: "Read and Write"
-        }
-    }
-}
-
 public enum ContainerType: String, CaseIterable {
     case docker, podman
 

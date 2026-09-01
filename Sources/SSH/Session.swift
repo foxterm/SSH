@@ -5,7 +5,6 @@
 import CSSH2
 import Extension
 import Foundation
-import libetos
 
 public extension SSH {
     /// 执行 SSH 握手协议
@@ -60,7 +59,7 @@ public extension SSH {
 
         // 执行底层握手
         let rec = await callSSH2 { [self] in
-            libssh2_session_handshake(rawSession, fd)
+            libssh2_session_handshake(rawSession, socket.fd)
         }
 
         guard rec == LIBSSH2_ERROR_NONE else {
@@ -74,7 +73,6 @@ public extension SSH {
             freeSession()
             return false
         }
-        channelPoll.socketFD = fd
         channelPoll.bufferSize = bufferSize
         return true
     }
@@ -190,8 +188,6 @@ public extension SSH {
         }
         set {
             guard rawSession != nil else { return }
-            // 同时同步底层 Socket 和 libssh2 会话的状态
-            etos_socket_set_blocking(fd, newValue)
             libssh2_session_set_blocking(rawSession, newValue ? 1 : 0)
         }
     }
@@ -215,22 +211,21 @@ public extension SSH {
         libssh2_keepalive_config(rawSession, 1, keepaliveInterval.uint32)
     }
 
-    //    /// 发送心跳包，维持连接不断开
-    /// 不需要心跳，使用了 Socket 层的 KeepAlive 机制防止链路被运营商中间设备切断
-    //    internal func sendKeepalive() {
-    //        guard rawSession != nil, isAuthenticated else { return }
-    //        let seconds: Buffer<Int32> = .init()
-    //        let rc = libssh2_keepalive_send(rawSession, seconds.buffer)
-    //        guard rc == LIBSSH2_ERROR_NONE else {
-    //            #if DEBUG
-    //                print("心跳失败: \(rc)")
-    //            #endif
-    //            return
-    //        }
-    //        #if DEBUG
-    //            print("下一次心跳 \(seconds.pointee) 秒")
-    //        #endif
-    //    }
+    ///    /// 发送心跳包，维持连接不断开
+    internal func sendKeepalive() {
+        guard rawSession != nil, isAuthenticated else { return }
+        let seconds: Buffer<Int32> = .init()
+        let rc = libssh2_keepalive_send(rawSession, seconds.buffer)
+        guard rc == LIBSSH2_ERROR_NONE else {
+            #if DEBUG
+                print("心跳失败: \(rc)")
+            #endif
+            return
+        }
+        #if DEBUG
+            print("下一次心跳 \(seconds.pointee) 秒")
+        #endif
+    }
 
     /// 读取远程文件的完整内容
     func readFile(_ filename: String) async -> String? {
@@ -287,10 +282,10 @@ public extension SSH {
     /// 安全释放 SSH 会话资源
     /// 包含取消定时器、发送断开指令、释放内存等
     func freeSession() {
+        timer?.cancel()
+        timer = nil
         channelPoll.mutex.with {
             guard rawSession != nil else { return }
-            //            timer?.cancel()
-            //            timer = nil
 
             // 切换回阻塞模式以确保优雅退出
             sessionBlocking = true

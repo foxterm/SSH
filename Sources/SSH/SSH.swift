@@ -5,7 +5,7 @@
 import CSSH2
 import Extension
 import Foundation
-import libetos
+import Socket
 
 /// SSH 核心管理类，负责会话生命周期、底层 Socket 绑定及 libssh2 钩子函数分发
 public class SSH {
@@ -35,14 +35,14 @@ public class SSH {
         self.compress = compress
         // 确保 Banner 格式符合 SSH 规范（必须以 SSH- 开头）
         clientbanner = !banner.isEmpty && banner.hasPrefix("SSH-") ? banner : SSH.banner
-        etos_init()
+        libssh2_init(0)
     }
 
     /// 会话回调代理，用于同步连接状态、认证交互及流量监控
     public var sessionDelegate: SessionDelegate?
 
     /// 底层 TCP 套接字文件描述符
-    public internal(set) var fd: Int32 = -1
+    public internal(set) var socket: Socket = .init()
 
     /// TCP 层参数配置
     public var ttl: Int32 = 0
@@ -72,8 +72,8 @@ public class SSH {
     /// 指向 libssh2_session 的原始 C 指针
     public internal(set) var rawSession: OpaquePointer?
 
-    // Keepalive 心跳包定时器
-    // var timer: DispatchSourceTimer?
+    /// Keepalive 心跳包定时器
+    var timer: DispatchSourceTimer?
 
     // MARK: - Libssh2 C 回调函数静态封装
 
@@ -113,7 +113,7 @@ public class SSH {
 
     deinit {
         close()
-        etos_cleanup()
+        libssh2_exit()
         #if DEBUG
             print("♻️", "SSH 核心实例已安全销毁")
         #endif

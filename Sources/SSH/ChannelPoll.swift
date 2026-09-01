@@ -48,7 +48,6 @@ class ChannelStream {
 }
 
 class ChannelPoll {
-    var socketFD: Int32 = -1
     var bufferSize = 0x10000 // 64KB
     let queue = DispatchQueue(label: "app.foxterm.channeltask.queue")
     var _isLooping: Bool = false
