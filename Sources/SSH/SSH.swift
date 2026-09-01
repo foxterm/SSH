@@ -24,20 +24,6 @@ public class SSH {
     public let compress: Bool
     /// 客户端向服务器声明的协议标识串
     public let clientbanner: String
-
-    public init(
-        host: String, port: Int, compress: Bool = false, timeout: Int = 10 * 1000,
-        banner: String = SSH.banner
-    ) {
-        self.host = host
-        self.port = port
-        self.timeout = timeout > 0 ? timeout : 10 * 1000
-        self.compress = compress
-        // 确保 Banner 格式符合 SSH 规范（必须以 SSH- 开头）
-        clientbanner = !banner.isEmpty && banner.hasPrefix("SSH-") ? banner : SSH.banner
-        libssh2_init(0)
-    }
-
     /// 会话回调代理，用于同步连接状态、认证交互及流量监控
     public var sessionDelegate: SessionDelegate?
 
@@ -111,9 +97,26 @@ public class SSH {
         abstract.ssh.recv(fd: fd, buffer: buffer, length: length, flags: flags)
     }
 
+    public init(
+        host: String, port: Int, compress: Bool = false, timeout: Int = 10 * 1000,
+        banner: String = SSH.banner
+    ) {
+        self.host = host
+        self.port = port
+        self.timeout = timeout > 0 ? timeout : 10 * 1000
+        self.compress = compress
+        // 确保 Banner 格式符合 SSH 规范（必须以 SSH- 开头）
+        clientbanner = !banner.isEmpty && banner.hasPrefix("SSH-") ? banner : SSH.banner
+        Mutex.shared.withLock {
+            libssh2_init(0)
+        }
+    }
+
     deinit {
         close()
-        libssh2_exit()
+        Mutex.shared.withLock {
+            libssh2_exit()
+        }
         #if DEBUG
             print("♻️", "SSH 核心实例已安全销毁")
         #endif

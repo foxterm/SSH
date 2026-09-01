@@ -54,7 +54,7 @@ class ChannelPoll {
     var bufferSize = 0x10000 // 64KB
     let queue = DispatchQueue(label: "app.foxterm.channeltask.queue")
     var _isLooping: Bool = false
-    let mutex: NSLock = .init()
+    let mutex: Mutex = .init()
 
     private var _tasks: [OpaquePointer: ChannelStream] = [:]
 }
