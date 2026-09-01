@@ -172,6 +172,12 @@ extension ChannelPoll {
                 }
 
                 let revents = pollFds[idx].revents.int32
+
+                if revents & LIBSSH2_POLLFD_CHANNEL_CLOSED != 0 {
+                    tasksToRemove.insert(task.handle)
+                    continue
+                }
+
                 let isTimeout = (pollRc == 0)
 
                 let canRead = isTimeout || (revents & (LIBSSH2_POLLFD_POLLIN | LIBSSH2_POLLFD_POLLEXT)) != 0
@@ -240,7 +246,7 @@ extension ChannelPoll {
                     }
                 }
 
-                if hasReadError || hasWriteError || isEofReached || (revents & (LIBSSH2_POLLFD_POLLERR | LIBSSH2_POLLFD_POLLHUP)) != 0 {
+                if hasReadError || hasWriteError || isEofReached || (revents & (LIBSSH2_POLLFD_POLLERR | LIBSSH2_POLLFD_POLLHUP | LIBSSH2_POLLFD_CHANNEL_CLOSED)) != 0 {
                     tasksToRemove.insert(task.handle)
                     continue
                 }
