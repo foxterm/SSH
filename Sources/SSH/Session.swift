@@ -82,7 +82,7 @@ public extension SSH {
     /// 获取主机密钥算法支持列表
     static func getHostKeyAlgorithms(session inputSession: OpaquePointer? = nil) -> HostKeySupport {
         // 按照证书优先、算法安全性从高到低的规则排列
-        let preferredOrder: Set = [
+        let preferredOrder: [String] = [
             "ssh-ed25519-cert-v01@openssh.com",
             "ssh-ed25519",
             "ecdsa-sha2-nistp256-cert-v01@openssh.com",
