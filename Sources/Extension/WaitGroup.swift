@@ -18,7 +18,7 @@ public final class WaitGroup {
         pthread_mutex_destroy(&mutex)
         pthread_cond_destroy(&cond)
         #if DEBUG
-            print("♻️", "WaitGroup 资源已完全销毁")
+            print("♻️", "WaitGroup")
         #endif
     }
 }
