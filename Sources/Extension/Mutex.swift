@@ -39,8 +39,8 @@ public extension Mutex {
     /// 执行闭包并自动管理锁的释放
     @inline(__always)
     func withLock<T>(_ body: () throws -> T) rethrows -> T {
-        pthread_mutex_lock(&mutex)
-        defer { pthread_mutex_unlock(&mutex) }
+        lock()
+        defer { unlock() }
         return try body()
     }
 }
