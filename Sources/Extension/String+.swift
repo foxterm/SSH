@@ -151,4 +151,26 @@ public extension String {
         }
 
     #endif
+
+    /// SwifterSwift: Removes given prefix from the string.
+    ///
+    ///   "Hello, World!".removingPrefix("Hello, ") -> "World!"
+    ///
+    /// - Parameter prefix: Prefix to remove from the string.
+    /// - Returns: The string after prefix removing.
+    func removingPrefix(_ prefix: String) -> String {
+        guard hasPrefix(prefix) else { return self }
+        return String(dropFirst(prefix.count))
+    }
+
+    /// SwifterSwift: Removes given suffix from the string.
+    ///
+    ///   "Hello, World!".removingSuffix(", World!") -> "Hello"
+    ///
+    /// - Parameter suffix: Suffix to remove from the string.
+    /// - Returns: The string after suffix removing.
+    func removingSuffix(_ suffix: String) -> String {
+        guard hasSuffix(suffix) else { return self }
+        return String(dropLast(suffix.count))
+    }
 }
