@@ -18,6 +18,12 @@ public extension SSH {
         return isConnected
     }
 
+    /// 获取当前连接的主机名
+    /// - Returns: 主机名字符串
+    var hostname: String {
+        socket.hostname
+    }
+
     /// 通过代理服务器发起连接
     /// 支持 SOCKS5、HTTP 代理以及 SSL 加密代理
     /// - Parameter proxy: 代理配置信息对象
