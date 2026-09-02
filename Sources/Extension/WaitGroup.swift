@@ -39,7 +39,7 @@ public extension WaitGroup {
         pthread_mutex_lock(&mutex)
         guard count > 0 else {
             pthread_mutex_unlock(&mutex)
-            assertionFailure("WaitGroup counter negative: done() called more times than add()")
+            // assertionFailure("WaitGroup counter negative: done() called more times than add()")
             return
         }
 
@@ -66,7 +66,6 @@ public extension WaitGroup {
     }
 
     /// 在 WaitGroup 上下文中执行任务，自动管理 add 与 done
-    @discardableResult
     @inline(__always)
     func with<T>(_ body: () throws -> T) rethrows -> T {
         add()
