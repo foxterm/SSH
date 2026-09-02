@@ -17,6 +17,9 @@ public final class Mutex {
     deinit {
         // 销毁 C 语言互斥锁资源
         pthread_mutex_destroy(&mutex)
+        #if DEBUG
+            print("♻️", "Mutex")
+        #endif
     }
 }
 
