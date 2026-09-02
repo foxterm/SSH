@@ -8,14 +8,24 @@ import Foundation
 public typealias IP = String
 
 public extension IP {
-    /// 判断是否为私有 IPv6 地址 (FC00::/7)
+    /// 判断是否为私有 IPv6 地址 (FC00::/7 prefix)
     var isPrivateIPv6: Bool {
         var addr = in6_addr()
         guard inet_pton(AF_INET6, self, &addr) == 1 else { return false }
 
-        return withUnsafeBytes(of: &addr) { ptr in
-            // ptr[0] 即为 IPv6 的首字节
-            (ptr[0] & 0xFE) == 0xFC
+        // 只读取前 8 字节（高 64 位）并按大端序转换为 UInt64
+        let high64 = withUnsafeBytes(of: addr) { ptr -> UInt64 in
+            let bigEndianValue = ptr.load(as: UInt64.self)
+            return UInt64(bigEndian: bigEndianValue)
+        }
+
+        switch high64 {
+        // FC00::/7 对应的范围是 FC00:: ~ FDFF:FFFF:...
+        // 前 64 位范围即 0xFC00_0000_0000_0000 ... 0xFDFF_FFFF_FFFF_FFFF
+        case 0xFC00_0000_0000_0000 ... 0xFDFF_FFFF_FFFF_FFFF:
+            return true
+        default:
+            return false
         }
     }
 
@@ -24,16 +34,23 @@ public extension IP {
         var addr = in_addr()
         guard inet_pton(AF_INET, self, &addr) == 1 else { return false }
 
-        return withUnsafeBytes(of: &addr) { ptr in
-            // 按网络字节序（大端序）读取字节，ptr[0] 永远是 IP 地址的第一段
-            let b0 = ptr[0]
-            let b1 = ptr[1]
+        let ipValue = UInt32(bigEndian: addr.s_addr)
 
-            let is10 = (b0 == 10)
-            let is172 = (b0 == 172) && ((b1 & 0xF0) == 16)
-            let is192 = (b0 == 192) && (b1 == 168)
+        switch ipValue {
+        // 10.0.0.0 - 10.255.255.255 (10.0.0.0/8)
+        case 0x0A00_0000 ... 0x0AFF_FFFF:
+            return true
 
-            return is10 || is172 || is192
+        // 172.16.0.0 - 172.31.255.255 (172.16.0.0/12)
+        case 0xAC10_0000 ... 0xAC1F_FFFF:
+            return true
+
+        // 192.168.0.0 - 192.168.255.255 (192.168.0.0/16)
+        case 0xC0A8_0000 ... 0xC0A8_FFFF:
+            return true
+
+        default:
+            return false
         }
     }
 
