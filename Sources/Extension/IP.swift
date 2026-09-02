@@ -34,7 +34,7 @@ public extension IP {
         var addr = in_addr()
         guard inet_pton(AF_INET, self, &addr) == 1 else { return false }
 
-        let ipValue = UInt32(bigEndian: addr.s_addr)
+        let ipValue = CFSwapInt32BigToHost(addr.s_addr)
 
         switch ipValue {
         // 10.0.0.0 - 10.255.255.255 (10.0.0.0/8)
