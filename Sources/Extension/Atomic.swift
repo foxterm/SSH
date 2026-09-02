@@ -14,7 +14,7 @@ public final class Atomic {
 
     deinit {
         #if DEBUG
-            print("♻️", "Atomic 资源已销毁")
+            print("♻️", "Atomic")
         #endif
     }
 }
