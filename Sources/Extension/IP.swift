@@ -8,87 +8,32 @@ import Foundation
 public typealias IP = String
 
 public extension IP {
-    /// A computed property that determines if the IP address is an IPv6 LAN IP.
-    ///
-    /// This property checks if the IP address falls within the following ranges:
-    /// - `::/127` (loopback address)
-    /// - `fc00::/7` (unique local addresses)
-    /// - `fe80::/10` (link-local addresses)
-    /// - `ff00::/8` (multicast addresses)
-    ///
-    /// The method uses `inet_pton` to convert the string representation of the IP address to an `in6_addr` structure.
-    /// It then checks the byte values of the address to determine if it falls within any of the specified ranges.
-    ///
-    /// - Returns: `true` if the IP address is an IPv6 LAN IP, `false` otherwise.
-    var isIPv6LanIP: Bool {
+    /// 判断是否为私有 IPv6 地址 (FC00::/7)
+    var isPrivateIPv6: Bool {
         var addr = in6_addr()
         guard inet_pton(AF_INET6, self, &addr) == 1 else { return false }
 
-        return withUnsafeBytes(of: &addr) { ptr -> Bool in
-            let bytes = ptr.bindMemory(to: UInt8.self)
-
-            // 1. Check Loopback (::1/128) -> 前15个字节(0..<15)全为0，最后一个字节为1
-            let isLoopback = bytes[0 ..< 15].allSatisfy { $0 == 0 } && bytes[15] == 1
-            if isLoopback {
-                return true
-            }
-
-            // 2. Check Prefixes
-            switch bytes[0] {
-            case 0xFC, 0xFD: // fc00::/7 (Unique Local)
-                return true
-            case 0xFE where (bytes[1] & 0xC0) == 0x80: // fe80::/10 (Link-Local)
-                return true
-            case 0xFF: // ff00::/8 (Multicast)
-                return true
-            default:
-                return false
-            }
+        return withUnsafeBytes(of: &addr) { ptr in
+            // ptr[0] 即为 IPv6 的首字节
+            (ptr[0] & 0xFE) == 0xFC
         }
     }
 
-    /// A computed property that determines if the IP address is a local area network (LAN) IPv4 address.
-    ///
-    /// The property checks if the IP address falls within the following ranges:
-    /// - 0.0.0.0/8
-    /// - 10.0.0.0/8
-    /// - 100.64.0.0/10
-    /// - 127.0.0.0/8
-    /// - 169.254.0.0/16
-    /// - 172.16.0.0/12
-    /// - 192.0.0.0/24
-    /// - 192.0.2.0/24
-    /// - 192.88.99.0/24
-    /// - 192.168.0.0/16
-    /// - 198.18.0.0/15
-    /// - 198.51.100.0/24
-    /// - 203.0.113.0/24
-    /// - 224.0.0.0/3
-    ///
-    /// - Returns: `true` if the IP address is a LAN IPv4 address, `false` otherwise.
-    var isIPv4LanIP: Bool {
+    /// 判断是否为私有 IPv4 地址 (RFC 1918)
+    var isPrivateIPv4: Bool {
         var addr = in_addr()
         guard inet_pton(AF_INET, self, &addr) == 1 else { return false }
-        let ip = CFSwapInt32BigToHost(addr.s_addr)
 
-        switch ip {
-        case 0x0000_0000 ... 0x00FF_FFFF, // 0.0.0.0/8
-             0x0A00_0000 ... 0x0AFF_FFFF, // 10.0.0.0/8
-             0x6440_0000 ... 0x647F_FFFF, // 100.64.0.0/10
-             0x7F00_0000 ... 0x7FFF_FFFF, // 127.0.0.0/8
-             0xA9FE_0000 ... 0xA9FE_FFFF, // 169.254.0.0/16
-             0xAC10_0000 ... 0xAC1F_FFFF, // 172.16.0.0/12
-             0xC000_0000 ... 0xC000_00FF, // 192.0.0.0/24
-             0xC000_0200 ... 0xC000_02FF, // 192.0.2.0/24
-             0xC058_6300 ... 0xC058_63FF, // 192.88.99.0/24
-             0xC0A8_0000 ... 0xC0A8_FFFF, // 192.168.0.0/16
-             0xC612_0000 ... 0xC613_FFFF, // 198.18.0.0/15
-             0xC633_6400 ... 0xC633_64FF, // 198.51.100.0/24
-             0xCB00_7100 ... 0xCB00_71FF, // 203.0.113.0/24
-             0xE000_0000 ... 0xFFFF_FFFF: // 224.0.0.0/3
-            return true
-        default:
-            return false
+        return withUnsafeBytes(of: &addr) { ptr in
+            // 按网络字节序（大端序）读取字节，ptr[0] 永远是 IP 地址的第一段
+            let b0 = ptr[0]
+            let b1 = ptr[1]
+
+            let is10 = (b0 == 10)
+            let is172 = (b0 == 172) && ((b1 & 0xF0) == 16)
+            let is192 = (b0 == 192) && (b1 == 168)
+
+            return is10 || is172 || is192
         }
     }
 
@@ -133,8 +78,8 @@ public extension IP {
 
     /// A computed property that checks if the IP address is a LAN (Local Area Network) IP address.
     /// It returns `true` if the IP address is either an IPv4 LAN IP or an IPv6 LAN IP.
-    var isLanIP: Bool {
-        isIPv4LanIP || isIPv6LanIP
+    var isPrivateIP: Bool {
+        isPrivateIPv4 || isPrivateIPv6
     }
 
     /// A computed property that checks if the current instance is an IP address.
@@ -144,7 +89,7 @@ public extension IP {
     }
 
     var isPubIP: Bool {
-        isIP && !isLanIP
+        isIP && !isPrivateIP
     }
 
     /// A computed property that returns the size of the IP address in bytes.
