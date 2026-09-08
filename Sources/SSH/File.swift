@@ -3,6 +3,7 @@
 // Created by foxterm@foxmail.com
 
 import CSSH2
+import Extension
 import Foundation
 
 /// 远程文件的完整状态信息
@@ -353,12 +354,12 @@ public struct Statvfs: Identifiable, Equatable {
 
     /// 计算总容量（字节 Bytes）
     public var totalSpace: Int64 {
-        Int64(frsize * blocks)
+        (frsize * blocks).int64
     }
 
     /// 计算可用空间（字节 Bytes）
     public var freeSpace: Int64 {
-        Int64(frsize * bfree)
+        (frsize * bfree).int64
     }
 
     /// 计算已使用空间（字节 Bytes）
