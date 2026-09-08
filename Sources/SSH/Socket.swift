@@ -25,14 +25,16 @@ public extension SSH {
         host
     }
 
-    // 通过代理服务器发起连接
-    // 支持 SOCKS5、HTTP 代理以及 SSL 加密代理
-    // - Parameter proxy: 代理配置信息对象
-    // - Returns: 是否连接成功
-//    func connect(proxy: ProxyConfig) async -> Bool {
-//        socket = await Proxy(proxy).connect(host, "\(port)", timeout)
-//        return isConnected
-//    }
+    /// 通过代理服务器发起连接
+    /// 支持 SOCKS5、HTTP 代理
+    /// - Parameter proxy: 代理配置信息对象
+    /// - Returns: 是否连接成功
+    func connect(proxy: ProxyConfiguration) async -> Bool {
+        fd = await io.call { [self] in
+            etos_socket_connect_proxy(proxy.type.raw, proxy.proxyHost, proxy.proxyPort.int32, proxy.timeoutMs.int32, host, port.int32, proxy.authentication?.user ?? nil, proxy.authentication?.password ?? nil)
+        }
+        return isConnected
+    }
 
     /// 内部数据发送方法
     /// - Parameters:
