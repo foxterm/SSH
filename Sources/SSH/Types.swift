@@ -183,7 +183,7 @@ public enum ProxyType: String, CaseIterable, Codable, Sendable {
         }
     }
 
-    var raw: Int32 {
+    public var raw: Int32 {
         switch self {
         case .http:
             ETOS_PROXY_HTTP
