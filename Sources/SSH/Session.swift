@@ -75,7 +75,6 @@ public extension SSH {
             return false
         }
         channelPoll.bufferSize = bufferSize
-        keepalive()
         return true
     }
 
