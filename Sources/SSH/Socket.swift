@@ -46,14 +46,11 @@ public extension SSH {
         var ipBuffer = [CChar](repeating: 0, count: 64)
         var port: Int32 = 0
 
-        let result = etos_socket_get_peer_info(fd, &ipBuffer, ipBuffer.count, &port)
-
-        if result == 0 {
-            let host = ipBuffer.string
-            return Net.joinHostPort(host: host, port: port.int)
+        guard etos_socket_get_peer_info(fd, &ipBuffer, ipBuffer.count, &port) == 0 else {
+            return nil
         }
-
-        return nil
+        let host = ipBuffer.string
+        return Net.joinHostPort(host: host, port: port.int)
     }
 
     /// 内部数据发送方法
