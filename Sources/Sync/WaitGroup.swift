@@ -51,6 +51,8 @@ public extension WaitGroup {
     /// 推荐用于简单的同步包裹，确保任务结束后计数器一定能递减
     /// - Parameter body: 需要执行的任务闭包
     /// - Returns: 闭包执行的返回值
+    @discardableResult
+    @inline(__always)
     func with<T>(_ body: () -> T) -> T {
         add()
         defer {
@@ -61,6 +63,8 @@ public extension WaitGroup {
     }
 
     /// 针对无返回值闭包的等待组封装
+    @discardableResult
+    @inline(__always)
     func withVoid(_ body: () -> Void) {
         with(body)
     }
