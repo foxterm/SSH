@@ -58,6 +58,7 @@ let package = Package(
         .target(
             name: "Proxy",
             dependencies: [
+                .target(name: "Extension"),
                 .target(name: "Socket"),
             ]
         ),

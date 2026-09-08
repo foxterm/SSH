@@ -29,17 +29,20 @@ public extension WaitGroup {
     /// 增加等待组的计数器（默认为 1）
     /// 在启动一个新的并发任务前调用
     /// - Parameter n: 增加的数量
+    @inline(__always)
     func add(_ n: Int32 = 1) {
         etos_sync_waitgroup_add(&_wg, n)
     }
 
     /// 减少等待组的计数器（通常在任务结束时调用）
     /// 当计数器归零时，会唤醒所有处于 `wait()` 状态的线程
+    @inline(__always)
     func done() {
         etos_sync_waitgroup_done(&_wg)
     }
 
     /// 阻塞当前线程，直到等待组的计数器变为 0
+    @inline(__always)
     func wait() {
         etos_sync_waitgroup_wait(&_wg)
     }

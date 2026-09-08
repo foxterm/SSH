@@ -28,17 +28,20 @@ public class Mutex {
 
 public extension Mutex {
     /// 阻塞当前线程直到获得锁
+    @inline(__always)
     func lock() {
         etos_sync_mutex_lock(&_m)
     }
 
     /// 释放锁，允许其他线程竞争
+    @inline(__always)
     func unlock() {
         etos_sync_mutex_unlock(&_m)
     }
 
     /// 尝试获取锁，不会阻塞当前线程
     /// - Returns: 获取成功返回 true，否则返回 false
+    @inline(__always)
     func trylock() -> Bool {
         etos_sync_mutex_trylock(&_m) == 0
     }

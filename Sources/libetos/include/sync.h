@@ -1,33 +1,22 @@
+#ifndef ETOS_SYNC_H
+#define ETOS_SYNC_H
+
+#include <pthread.h>
+#include <stdint.h>
+
 /* ------------------------------------------------------------
-   并发与同步控制
+   并发与同步控制 (macOS / POSIX)
    ------------------------------------------------------------ */
 
-#ifdef _WIN32
-#include <windows.h>
-typedef struct {
-  CRITICAL_SECTION cs;
-} etos_sync_mutex_t;
-#else
-#include <pthread.h>
 typedef struct {
   pthread_mutex_t mutex;
 } etos_sync_mutex_t;
-#endif
 
-#ifdef _WIN32
-typedef struct {
-  int32_t count;
-  CRITICAL_SECTION lock;
-  CONDITION_VARIABLE cv;
-} etos_sync_waitgroup_t;
-#else
-#include <pthread.h>
 typedef struct {
   int32_t count;
   pthread_mutex_t lock;
   pthread_cond_t cv;
 } etos_sync_waitgroup_t;
-#endif
 
 /** 初始化互斥锁 */
 void etos_sync_mutex_init(etos_sync_mutex_t *m);
@@ -81,3 +70,5 @@ int64_t etos_sync_atomic_exchange(volatile int64_t *addr, int64_t value);
 /** 原子比较交换 (CAS) */
 int64_t etos_sync_atomic_cas(volatile int64_t *addr, int64_t expected,
                              int64_t desired);
+
+#endif /* ETOS_SYNC_H */

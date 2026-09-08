@@ -4,33 +4,24 @@
 
 import Foundation
 
-/// An enumeration representing the types of proxy servers that can be used.
-///
-/// - http: Represents an HTTP proxy server.
-/// - https: Represents an HTTPS proxy server.
-/// - socks5: Represents a SOCKS5 proxy server.
-public enum ProxyType: String, CaseIterable {
+/// 表示支持的网络代理协议类型枚举
+public enum ProxyType: String, CaseIterable, Codable, Sendable {
+    /// HTTP 代理协议 (HTTP CONNECT)
     case http
-    /// case https
+
+    /// SOCKS5 代理协议 (RFC 1928)
     case socks5
 
+    /// 该代理协议的标准默认端口号（字符串形式）
     public var portStr: String {
-        switch self {
-        case .http:
-            "8080"
-        // case .https:
-        //     "8080"
-        case .socks5:
-            "1080"
-        }
+        String(port)
     }
 
+    /// 该代理协议的标准默认端口号（整数形式）
     public var port: Int {
         switch self {
         case .http:
             8080
-        // case .https:
-        //     8080
         case .socks5:
             1080
         }
