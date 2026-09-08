@@ -49,6 +49,7 @@ let package = Package(
             name: "libetos",
             dependencies: [
                 .product(name: "OpenSSL", package: "OpenSSL"),
+                .product(name: "CSSH2", package: "libssh2"),
             ]
         ),
     ],
