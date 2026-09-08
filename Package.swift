@@ -46,7 +46,10 @@ let package = Package(
             ]
         ),
         .target(
-            name: "libetos"
+            name: "libetos",
+            dependencies: [
+                .product(name: "OpenSSL", package: "OpenSSL"),
+            ]
         ),
     ],
     swiftLanguageVersions: [.v5]
