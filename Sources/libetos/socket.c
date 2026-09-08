@@ -446,3 +446,37 @@ int etos_socket_set_nodelay(int fd, bool enable) {
 int etos_socket_last_error(void) { return errno; }
 
 const char *etos_socket_strerror(int errnum) { return strerror(errnum); }
+
+int etos_socket_get_peer_info(int fd, char *ip_buf, size_t ip_buf_len,
+                              int *port) {
+  if (fd < 0 || !ip_buf || ip_buf_len == 0 || !port) {
+    return -1;
+  }
+
+  struct sockaddr_storage addr;
+  socklen_t addr_len = sizeof(addr);
+
+  // 获取套接字连接的远端地址
+  if (getpeername(fd, (struct sockaddr *)&addr, &addr_len) < 0) {
+    return -1;
+  }
+
+  // 根据 IPv4 或 IPv6 进行解析
+  if (addr.ss_family == AF_INET) {
+    struct sockaddr_in *s = (struct sockaddr_in *)&addr;
+    *port = ntohs(s->sin_port);
+    if (inet_ntop(AF_INET, &s->sin_addr, ip_buf, ip_buf_len) == NULL) {
+      return -1;
+    }
+  } else if (addr.ss_family == AF_INET6) {
+    struct sockaddr_in6 *s = (struct sockaddr_in6 *)&addr;
+    *port = ntohs(s->sin6_port);
+    if (inet_ntop(AF_INET6, &s->sin6_addr, ip_buf, ip_buf_len) == NULL) {
+      return -1;
+    }
+  } else {
+    return -1; // 不支持的地址族
+  }
+
+  return 0;
+}
