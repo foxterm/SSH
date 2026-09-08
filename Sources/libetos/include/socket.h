@@ -1,8 +1,8 @@
 #ifndef ETOS_SOCKET_H
 #define ETOS_SOCKET_H
 
-#include <stddef.h>
 #include <stdbool.h>
+#include <stddef.h>
 #include <sys/types.h>
 
 #ifdef __cplusplus
@@ -10,9 +10,9 @@ extern "C" {
 #endif
 
 /* 代理类型定义 */
-#define ETOS_PROXY_NONE   0
+#define ETOS_PROXY_NONE 0
 #define ETOS_PROXY_SOCKS5 1
-#define ETOS_PROXY_HTTP   2
+#define ETOS_PROXY_HTTP 2
 
 /* 常规常量定义 */
 #define ETOS_INVALID_SOCKET (-1)
@@ -41,14 +41,16 @@ int etos_socket_connect(const char *host, int port, int timeout_ms);
  * @param user 认证用户名（无认证传 NULL）
  * @param password 认证密码（无认证传 NULL）
  */
-int etos_socket_connect_proxy(int type, const char *proxy_host,
-                              int proxy_port, int timeout_ms,
-                              const char *target_host, int target_port,
-                              const char *user, const char *password);
+int etos_socket_connect_proxy(int type, const char *proxy_host, int proxy_port,
+                              int timeout_ms, const char *target_host,
+                              int target_port, const char *user,
+                              const char *password);
 
 /** 带超时的 Send/Recv */
-ssize_t etos_socket_send_timeout(int fd, const char *buf, size_t len, int flags, int timeout_ms);
-ssize_t etos_socket_recv_timeout(int fd, char *buf, size_t len, int flags, int timeout_ms);
+ssize_t etos_socket_send_timeout(int fd, const char *buf, size_t len, int flags,
+                                 int timeout_ms);
+ssize_t etos_socket_recv_timeout(int fd, char *buf, size_t len, int flags,
+                                 int timeout_ms);
 
 /** 原始数据收发 */
 ssize_t etos_socket_send(int fd, const char *buf, size_t len, int flags);
@@ -72,7 +74,8 @@ bool etos_socket_is_connect(int fd);
  * @param interval_sec 心跳包发送间隔(秒)
  * @param count 没收到响应时的重试次数
  */
-int etos_socket_set_keepalive(int fd, bool enable, int idle_sec, int interval_sec, int count);
+int etos_socket_set_keepalive(int fd, bool enable, int idle_sec,
+                              int interval_sec, int count);
 
 /** 设置 TCP_NODELAY (禁用 Nagle 算法，降低延迟) */
 int etos_socket_set_nodelay(int fd, bool enable);
@@ -81,7 +84,7 @@ int etos_socket_set_nodelay(int fd, bool enable);
 int etos_socket_last_error(void);
 
 /** 获取错误码描述 */
-const char* etos_socket_strerror(int errnum);
+const char *etos_socket_strerror(int errnum);
 
 #ifdef __cplusplus
 }
