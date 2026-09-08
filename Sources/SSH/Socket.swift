@@ -171,5 +171,8 @@ public extension SSH {
     /// 包含互斥锁保护以确保线程安全，并释放 SSL 上下文
     func closeSocket() {
         etos_socket_close(fd)
+        #if DEBUG
+            print("♻️", "彻底关闭并释放 Socket 资源")
+        #endif
     }
 }
