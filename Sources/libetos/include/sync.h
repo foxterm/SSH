@@ -1,19 +1,20 @@
 #ifndef ETOS_SYNC_H
 #define ETOS_SYNC_H
 
+#include <os/lock.h>
 #include <pthread.h>
-#include <stdint.h>
+#include <stdatomic.h>
 
 /* ------------------------------------------------------------
    并发与同步控制 (macOS / POSIX)
    ------------------------------------------------------------ */
 
 typedef struct {
-  pthread_mutex_t mutex;
+  os_unfair_lock lock; // 使用 Apple 原生轻量锁替代 pthread_mutex
 } etos_sync_mutex_t;
 
 typedef struct {
-  int32_t count;
+  int count;
   pthread_mutex_t lock;
   pthread_cond_t cv;
 } etos_sync_waitgroup_t;
