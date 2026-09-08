@@ -7,18 +7,18 @@ import libetos
 
 /// 互斥锁类，基于 libetos 提供的底层同步原语实现
 /// 用于在多线程环境下保护共享资源（如 SSH 会话指针）
-public class Mutex {
+public final class Mutex {
     public static let shared: Mutex = .init()
     /// libetos 内部定义的互斥锁结构体
-    var _m: etos_sync_mutex_t = .init()
+    private var _m: etos_sync_mutex_t = .init()
 
-    /// 初始化并分配互斥锁资源
+    /// 初始化互斥锁
     public init() {
         etos_sync_mutex_init(&_m)
     }
 
     deinit {
-        // 销毁锁资源，防止内存泄露或挂起
+        // 销毁锁资源
         etos_sync_mutex_destroy(&_m)
         #if DEBUG
             print("♻️", "Mutex 资源已释放")
@@ -43,28 +43,25 @@ public extension Mutex {
     /// - Returns: 获取成功返回 true，否则返回 false
     @inline(__always)
     func trylock() -> Bool {
-        etos_sync_mutex_trylock(&_m) == 0
+        // 修正：C 实现中成功返回 1 (非 0)，失败返回 0
+        etos_sync_mutex_trylock(&_m) != 0
     }
 
-    /// 自动锁定执行闭包，并在执行结束后自动解锁（推荐用法）
+    /// 自动锁定执行闭包，并在执行结束后自动解锁（支持抛出异常与返回值）
     /// - Parameter body: 需要在锁保护下执行的代码块
     /// - Returns: 闭包执行的返回值
-    func with<T>(_ body: () -> T) -> T {
+    @discardableResult
+    @inline(__always)
+    func withLock<T>(_ body: () throws -> T) rethrows -> T {
         lock()
-        defer {
-            // 使用 defer 确保即使代码块抛出异常或中途退出也能正常解锁
-            self.unlock()
-        }
-        return body()
+        defer { unlock() }
+        return try body()
     }
 
-    /// `with` 方法的别名，符合标准库命名习惯
-    func withLock<T>(_ body: () -> T) -> T {
-        with(body)
-    }
-
-    /// 针对无返回值闭包的锁封装
+    /// 针对无返回值闭包的锁定封装
+    @discardableResult
+    @inline(__always)
     func withVoid(_ body: () -> Void) {
-        with(body)
+        withLock(body)
     }
 }
