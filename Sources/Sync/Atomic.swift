@@ -40,6 +40,21 @@ public extension Atomic {
         add(Int64(delta))
     }
 
+    @inline(__always)
+    func sub(_ delta: Int64) {
+        etos_sync_atomic_sub(&_addr64, delta)
+    }
+
+    @inline(__always)
+    func sub(_ delta: Int) {
+        sub(Int64(delta))
+    }
+
+    @inline(__always)
+    func sub(_ delta: Int32) {
+        sub(Int64(delta))
+    }
+
     /// 以原子方式读取当前数值
     /// 确保在读取过程中不会受到其他线程写入操作的干扰
     @inline(__always)
