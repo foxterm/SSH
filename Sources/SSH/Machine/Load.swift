@@ -9,7 +9,6 @@ public extension Machine {
     func getAvgStat() async -> AvgStat? {
         let cmd = #"if [ -f /proc/loadavg ]; then awk '{print $1"|"$2"|"$3}' /proc/loadavg; else uptime | awk -F'load average: ' '{print $2}' | sed 's/,//g; s/ /|/g'; fi"#
 
-
         guard let output = await ssh.exec(cmd)?.string?.trimmingCharacters(in: .whitespacesAndNewlines), !output.isEmpty else { return nil }
 
         let p = output.contains("|") ? output.components(separatedBy: "|") : output.components(separatedBy: .whitespaces).filter { !$0.isEmpty }

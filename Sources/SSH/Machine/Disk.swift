@@ -9,7 +9,7 @@ public extension Machine {
     /// 获取磁盘 I/O 计数统计信息
     func getDiskIOCountersStat() async -> [DiskIOCountersStat]? {
         let boundary = "DISK_STATS_BOUNDARY"
-        
+
         let gatherCmd = #"awk '{print $3"|"$4"|"$5"|"$6"|"$7"|"$8"|"$9"|"$10"|"$11"|"$12"|"$13"|"$14}' /proc/diskstats; echo "\#(boundary)"; sleep 1; awk '{print $3"|"$4"|"$5"|"$6"|"$7"|"$8"|"$9"|"$10"|"$11"|"$12"|"$13"|"$14}' /proc/diskstats"#
 
         guard let output = await ssh.exec(gatherCmd)?.string else { return nil }

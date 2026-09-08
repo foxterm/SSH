@@ -497,7 +497,8 @@ public struct NetIOCountersStat: Identifiable, Equatable {
 }
 
 /// 表示磁盘空间与挂载统计信息的数据结构
-public struct DiskUsageStat {
+public struct DiskUsageStat: Identifiable, Equatable {
+    public let id = UUID()
     /// 设备名，如 /dev/sda1
     public var device: String = ""
 
