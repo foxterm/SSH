@@ -20,10 +20,6 @@ let package = Package(
             url: "https://github.com/krzyzanowskim/OpenSSL.git", .upToNextMajor(from: "3.6.0001")
         ),
         .package(url: "https://github.com/foxterm/libssh2.git", branch: "main"),
-        .package(
-            url: "https://github.com/apple/swift-atomics.git",
-            .upToNextMajor(from: "1.2.0")
-        ),
     ],
     targets: [
         .target(
@@ -46,7 +42,6 @@ let package = Package(
             name: "Extension",
             dependencies: [
                 .target(name: "libetos"),
-                .product(name: "Atomics", package: "swift-atomics"),
             ]
         ),
         .target(
