@@ -116,7 +116,6 @@ extension ChannelPoll {
             var pollFds: [LIBSSH2_POLLFD] = []
             pollFds.reserveCapacity(currentTasks.count)
 
-            // 锁内仅提取句柄和计算状态，避免在锁内执行 setupStreams 导致的耗时阻塞
             mutex.withLock {
                 for t in currentTasks {
                     guard let existingTask = _tasks[t.handle], !existingTask.isCancelled else { continue }
@@ -194,13 +193,13 @@ extension ChannelPoll {
 
                 // 4.1 读取 stdout (stream_id: 0)
                 if canRead {
-                    let r = read(data: data, handle: task.handle, output: task.output, stream_id: 0)
+                    let r = read(data: data, task: task, stream_id: 0)
                     if r < 0 {
                         if r != LIBSSH2_ERROR_EAGAIN {
                             hasReadError = true
                         }
                     } else if r == 0 {
-                        isStdoutEof = checkChannelEof(handle: task.handle)
+                        isStdoutEof = checkChannelEof(task: task)
                     } else {
                         currentIncrement += r
                     }
@@ -208,13 +207,13 @@ extension ChannelPoll {
 
                 // 4.2 读取 stderr (stream_id: 1)
                 if canRead && !hasReadError && !isStderrEof, let outerr = task.outerr {
-                    let r = read(data: data, handle: task.handle, output: outerr, stream_id: 1)
+                    let r = read(data: data, task: task, output: outerr, stream_id: 1)
                     if r < 0 {
                         if r != LIBSSH2_ERROR_EAGAIN {
                             hasReadError = true
                         }
                     } else if r == 0 {
-                        isStderrEof = checkChannelEof(handle: task.handle)
+                        isStderrEof = checkChannelEof(task: task)
                     } else {
                         currentIncrement += r
                     }
@@ -261,10 +260,10 @@ extension ChannelPoll {
         }
     }
 
-    private func checkChannelEof(handle: OpaquePointer) -> Bool {
+    private func checkChannelEof(task: ChannelStream) -> Bool {
         mutex.withLock {
-            guard let t = _tasks[handle], !t.isCancelled else { return false }
-            return libssh2_channel_eof(handle) != 0
+            guard !task.isCancelled, _tasks[task.handle] != nil else { return false }
+            return libssh2_channel_eof(task.handle) != 0
         }
     }
 
@@ -313,14 +312,18 @@ extension ChannelPoll {
         }
     }
 
-    func read(data: Buffer<CChar>, handle: OpaquePointer, output: OutputStream, stream_id: Int32) -> Int64 {
+    func read(data: Buffer<CChar>, task: ChannelStream, output: OutputStream? = nil, stream_id: Int32) -> Int64 {
+        let targetOutput = output ?? task.output
+
+        // 将 C 底层函数调用完全放入锁内保护，防止执行 C 代码期间句柄被外部销毁
         let n = mutex.withLock { () -> Int in
-            guard let task = _tasks[handle], !task.isCancelled else { return -1 }
-            return libssh2_channel_read_ex(handle, stream_id, data.buffer, data.count)
+            guard !task.isCancelled, _tasks[task.handle] != nil else { return -1 }
+            return libssh2_channel_read_ex(task.handle, stream_id, data.buffer, data.count)
         }
+
         if n > 0 {
             // 确保全量写入 OutputStream，避免高并发或缓存区不足时漏数据
-            let success = writeFully(to: output, buffer: UnsafeRawPointer(data.buffer).assumingMemoryBound(to: UInt8.self), count: n)
+            let success = writeFully(to: targetOutput, buffer: UnsafeRawPointer(data.buffer).assumingMemoryBound(to: UInt8.self), count: n)
             return success ? n.int64 : -1
         } else if n == LIBSSH2_ERROR_EAGAIN {
             return 0
@@ -351,7 +354,7 @@ extension ChannelPoll {
                 guard let baseAddr = bp.baseAddress else { return 0 }
                 let ptr = baseAddr.advanced(by: task.writeBufferOffset)
                 return mutex.withLock { () -> Int in
-                    guard let t = _tasks[task.handle], !t.isCancelled else { return -1 }
+                    guard !task.isCancelled, _tasks[task.handle] != nil else { return -1 }
                     return libssh2_channel_write_ex(task.handle, 0, ptr, pendingCount)
                 }
             }
@@ -375,7 +378,7 @@ extension ChannelPoll {
         let nread = input.read(data.buffer, maxLength: data.count)
         if nread > 0 {
             let written = mutex.withLock { () -> Int in
-                guard let t = _tasks[task.handle], !t.isCancelled else { return -1 }
+                guard !task.isCancelled, _tasks[task.handle] != nil else { return -1 }
                 return libssh2_channel_write_ex(task.handle, 0, data.buffer, nread)
             }
 
