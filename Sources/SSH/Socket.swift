@@ -16,7 +16,11 @@ public extension SSH {
         fd = await io.call { [self] in
             etos_socket_connect(host, port.int32, timeout.int32 * 1000)
         }
-        return isConnected
+        guard isConnected else {
+            error = socketLastStrError
+            return false
+        }
+        return true
     }
 
     /// 获取当前连接的主机名
@@ -33,7 +37,11 @@ public extension SSH {
         fd = await io.call { [self] in
             etos_socket_connect_proxy(proxy.type.raw, proxy.proxyHost, proxy.proxyPort.int32, proxy.timeoutMs.int32, host, port.int32, proxy.authentication?.user ?? nil, proxy.authentication?.password ?? nil)
         }
-        return isConnected
+        guard isConnected else {
+            error = socketLastStrError
+            return false
+        }
+        return true
     }
 
     /// 内部数据发送方法
@@ -75,6 +83,14 @@ public extension SSH {
     /// 检查底层 Socket 是否处于已连接状态
     var isConnected: Bool {
         etos_socket_is_connect(fd)
+    }
+
+    var socketLastError: Int32 {
+        etos_socket_last_error()
+    }
+
+    var socketLastStrError: String {
+        etos_socket_strerror(socketLastError).string
     }
 
     internal func keepalive() {
