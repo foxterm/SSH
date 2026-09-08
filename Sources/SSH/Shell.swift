@@ -50,7 +50,6 @@ public extension Shell {
 
         // 设置渠道为非阻塞模式，以便进行轮询
         libssh2_channel_set_blocking(rawChannel, 0)
-        setupStreamsAndRegister()
 
         // 1. 请求伪终端 (PTY)
         var code = await channel.ssh.callSSH2 { [self] in
@@ -72,7 +71,9 @@ public extension Shell {
             freeShell()
             return false
         }
-
+        Task {
+            await setupStreamsAndRegister()
+        }
         // 通知代理并开始轮询远程输出
         shellDelegate?.shell(shell: self)
         return true
@@ -112,15 +113,21 @@ public extension Shell {
 
     /// 轮询 Shell 输出
     /// 在独立后台队列中运行，通过 libssh2_poll 监听读取事件
-    private func setupStreamsAndRegister() {
+    private func setupStreamsAndRegister() async {
         guard let rawChannel else { return }
         var createInStream: InputStream?
         var createOutStream: OutputStream?
-        Stream.getBoundStreams(withBufferSize: channel.ssh.bufferSize, inputStream: &createInStream, outputStream: &createOutStream)
+        Stream.getBoundStreams(
+            withBufferSize: channel.ssh.bufferSize,
+            inputStream: &createInStream,
+            outputStream: &createOutStream
+        )
 
         writeInputStream = createInStream
         writeOutputStream = createOutStream
 
+        // 两个绑定的流都需要 open
+        writeInputStream?.open()
         writeOutputStream?.open()
 
         readOutputStream = BlockOutputStream { [weak self] data in
@@ -135,19 +142,18 @@ public extension Shell {
 
         guard let outStream = readOutputStream, let errStream = errorOutputStream else { return }
 
-        // 异步注册到通道任务管理器中
-        Task {
-            await channel.ssh.channelPoll.register(
-                handle: rawChannel,
-                output: outStream,
-                outerr: errStream,
-                write: writeInputStream
-            )
-            #if DEBUG
-                print("⚠️", "ChannelTask 轮询已退出，正在关闭 Shell")
-            #endif
-            self.freeShell()
-        }
+        // 在当前线程/ Task 中直接 await 注册，不要嵌套无序 Task
+        await channel.ssh.channelPoll.register(
+            handle: rawChannel,
+            output: outStream,
+            outerr: errStream,
+            write: writeInputStream
+        )
+
+        #if DEBUG
+            print("⚠️", "ChannelTask 轮询已退出，正在关闭 Shell")
+        #endif
+        freeShell()
     }
 
     /// 处理标准输出回调
