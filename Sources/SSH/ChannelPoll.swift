@@ -16,7 +16,7 @@ class ChannelStream {
     var totalSize: Int64 = 0
     var onProgress: ((_ current: Int64, _ total: Int64) -> Bool)?
 
-    // 💡 基于游标的环形/偏移 Buffer，避免 removeFirst 的 O(N) 内存拷贝
+    // 基于游标的环形/偏移 Buffer，避免 removeFirst 的 O(N) 内存拷贝
     var writeBuffer = [UInt8]()
     var writeBufferOffset = 0
 
@@ -172,27 +172,19 @@ extension ChannelPoll {
                 }
 
                 let revents = pollFds[idx].revents.int32
-
-                if revents & LIBSSH2_POLLFD_CHANNEL_CLOSED != 0 {
-                    tasksToRemove.insert(task.handle)
-                    continue
-                }
-
+                let isChannelClosed = (revents & LIBSSH2_POLLFD_CHANNEL_CLOSED) != 0
                 let isTimeout = (pollRc == 0)
 
-                let canRead = isTimeout || (revents & (LIBSSH2_POLLFD_POLLIN | LIBSSH2_POLLFD_POLLEXT)) != 0
-                let canWrite = isTimeout || (revents & LIBSSH2_POLLFD_POLLOUT) != 0
-
-                if !canRead && !canWrite && (revents & (LIBSSH2_POLLFD_POLLEXT | LIBSSH2_POLLFD_POLLERR | LIBSSH2_POLLFD_POLLHUP)) == 0 {
-                    continue
-                }
+                let canRead = isTimeout || isChannelClosed || (revents & (LIBSSH2_POLLFD_POLLIN | LIBSSH2_POLLFD_POLLEXT)) != 0
+                let canWrite = !isChannelClosed && (isTimeout || (revents & LIBSSH2_POLLFD_POLLOUT) != 0)
 
                 var currentIncrement: Int64 = 0
                 var hasReadError = false
                 var hasWriteError = false
-                var isEofReached = false
+                var isStdoutEof = false
+                var isStderrEof = false
 
-                // 读取 stdout
+                // 4.1 读取 stdout (stream_id: 0)
                 if canRead {
                     let r = read(data: data, handle: task.handle, output: task.output, stream_id: 0)
                     if r < 0 {
@@ -200,32 +192,42 @@ extension ChannelPoll {
                             hasReadError = true
                         }
                     } else if r == 0 {
-                        let eofRc = mutex.withLock {
-                            (_tasks[task.handle] != nil && !_tasks[task.handle]!.isCancelled) ? libssh2_channel_eof(task.handle) : 0
+                        // 读出 0 字节时，校验远端是否已发 EOF
+                        let isEof = mutex.withLock {
+                            (_tasks[task.handle] != nil && !_tasks[task.handle]!.isCancelled) ? (libssh2_channel_eof(task.handle) != 0) : false
                         }
-                        if eofRc != 0 {
-                            isEofReached = true
+                        if isEof {
+                            isStdoutEof = true
                         }
                     } else {
                         currentIncrement += r
                     }
                 }
 
-                // 读取 stderr
-                if canRead && !hasReadError && !isEofReached, let outerr = task.outerr {
+                // 4.2 读取 stderr (stream_id: 1)
+                if canRead && !hasReadError, let outerr = task.outerr {
                     let r = read(data: data, handle: task.handle, output: outerr, stream_id: 1)
                     if r < 0 {
                         if r != LIBSSH2_ERROR_EAGAIN {
                             hasReadError = true
                         }
-                    } else if r > 0 {
+                    } else if r == 0 {
+                        let isEof = mutex.withLock {
+                            (_tasks[task.handle] != nil && !_tasks[task.handle]!.isCancelled) ? (libssh2_channel_eof(task.handle) != 0) : false
+                        }
+                        if isEof {
+                            isStderrEof = true
+                        }
+                    } else {
                         currentIncrement += r
-                        isEofReached = false
                     }
+                } else {
+                    // 如果没有配置 stderr，默认判定 stderr 已完成
+                    isStderrEof = true
                 }
 
-                // 处理写入
-                if canWrite && !hasReadError && !isEofReached {
+                // 4.3 处理写入
+                if canWrite && !hasReadError {
                     let w = write(data: data, task: task)
                     if w < 0 {
                         if w != LIBSSH2_ERROR_EAGAIN {
@@ -236,7 +238,7 @@ extension ChannelPoll {
                     }
                 }
 
-                // 进度与清理判断
+                // 4.4 进度更新
                 if currentIncrement > 0 {
                     let total = (progressTracker[task.handle] ?? 0) + currentIncrement
                     progressTracker[task.handle] = total
@@ -246,7 +248,12 @@ extension ChannelPoll {
                     }
                 }
 
-                if hasReadError || hasWriteError || isEofReached || (revents & (LIBSSH2_POLLFD_POLLERR | LIBSSH2_POLLFD_POLLHUP)) != 0 {
+                // 4.5 退出与清理条件判断
+                // 必须在 stdout 和 stderr 都收到了 EOF（且不再有新字节），或者底层 Socket 彻底 Close / 发生错误时，才移除任务
+                let bothEofReached = isStdoutEof && isStderrEof
+                let isHasPollErr = (revents & (LIBSSH2_POLLFD_POLLERR | LIBSSH2_POLLFD_POLLHUP)) != 0
+
+                if hasReadError || hasWriteError || (isChannelClosed && currentIncrement == 0) || bothEofReached || isHasPollErr {
                     tasksToRemove.insert(task.handle)
                     continue
                 }
@@ -310,13 +317,28 @@ extension ChannelPoll {
             return libssh2_channel_read_ex(handle, stream_id, data.buffer, data.count)
         }
         if n > 0 {
-            output.write(data.buffer, maxLength: n)
-            return n.int64
+            // 确保全量写入 OutputStream，避免高并发或缓存区不足时漏数据
+            let success = writeFully(to: output, buffer: UnsafeRawPointer(data.buffer).assumingMemoryBound(to: UInt8.self), count: n)
+            return success ? n.int64 : -1
         } else if n == LIBSSH2_ERROR_EAGAIN {
+            return 0
+        } else if n == 0 {
             return 0
         } else {
             return -1
         }
+    }
+
+    private func writeFully(to output: OutputStream, buffer: UnsafePointer<UInt8>, count: Int) -> Bool {
+        var totalWritten = 0
+        while totalWritten < count {
+            let written = output.write(buffer.advanced(by: totalWritten), maxLength: count - totalWritten)
+            if written <= 0 {
+                return false
+            }
+            totalWritten += written
+        }
+        return true
     }
 
     func write(data: Buffer<CChar>, task: ChannelStream) -> Int64 {

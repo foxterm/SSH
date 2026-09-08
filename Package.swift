@@ -45,6 +45,7 @@ let package = Package(
         .target(
             name: "Extension",
             dependencies: [
+                .target(name: "libetos"),
                 .product(name: "Atomics", package: "swift-atomics"),
             ]
         ),
@@ -59,6 +60,9 @@ let package = Package(
             dependencies: [
                 .target(name: "Socket"),
             ]
+        ),
+        .target(
+            name: "libetos"
         ),
     ],
     swiftLanguageVersions: [.v5]

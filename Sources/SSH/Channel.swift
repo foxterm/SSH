@@ -67,6 +67,10 @@ public extension Channel {
     func exec(
         _ command: String, output: OutputStream, outerr: OutputStream, max: Int = 0
     ) async -> Bool {
+        ssh.wait.add()
+        defer {
+            ssh.wait.done()
+        }
         guard await newSession() else {
             return false
         }

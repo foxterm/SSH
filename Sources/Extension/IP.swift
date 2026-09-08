@@ -140,7 +140,7 @@ public extension IP {
     ///
     /// - Parameter domain: The domain name to resolve.
     /// - Returns: An array of IP addresses associated with the given domain name.
-    static func resolveDomainName(_ domain: IP) async -> [IP] {
+    static func resolveDomainName(_ domain: String) async -> [IP] {
         await io.call {
             if domain.isIP {
                 return [domain]
