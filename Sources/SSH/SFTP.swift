@@ -515,11 +515,11 @@ public extension SFTP {
         SSHOutputStream(handle: handle, ssh: ssh, stream: .sftp)
     }
 
-    func closeHandle() async {
+    func closeHandle() {
         guard handle != nil else {
             return
         }
-        _ = await ssh.callSSH2 { [self] in
+        ssh.callSSH2 { [self] in
             libssh2_sftp_close_handle(handle)
         }
         handle = nil
@@ -531,6 +531,7 @@ public extension SFTP {
         guard rawSFTP != nil else {
             return
         }
+        closeHandle()
         libssh2_sftp_shutdown(rawSFTP)
         _rawSFTP = nil
     }

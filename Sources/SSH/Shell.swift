@@ -60,7 +60,7 @@ public extension Shell {
             )
         }
         guard code == LIBSSH2_ERROR_NONE else {
-            closeShell()
+            freeShell()
             return false
         }
 
@@ -69,7 +69,7 @@ public extension Shell {
             libssh2_channel_process_startup(rawChannel, "shell", 5, nil, 0)
         }
         guard code == LIBSSH2_ERROR_NONE else {
-            closeShell()
+            freeShell()
             return false
         }
 
@@ -146,7 +146,7 @@ public extension Shell {
             #if DEBUG
                 print("⚠️", "ChannelTask 轮询已退出，正在关闭 Shell")
             #endif
-            self.closeShell()
+            self.freeShell()
         }
     }
 
@@ -165,7 +165,7 @@ public extension Shell {
     }
 
     /// 关闭 Shell 会话并释放关联资源
-    func closeShell() {
+    func freeShell() {
         if channel.sendEof() {
             channel.waitEOF()
         }

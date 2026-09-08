@@ -49,11 +49,7 @@ public struct FileStat: Identifiable, Equatable {
 
 /// 文件列表项属性
 /// 包含文件名及通过解析长格式字符串（Longname）获得的扩展信息
-public struct FileAttributes: Identifiable, Equatable {
-    public static func == (lhs: FileAttributes, rhs: FileAttributes) -> Bool {
-        lhs.id == rhs.id
-    }
-
+public struct FileAttributes: Identifiable, Equatable, Hashable {
     public let id = UUID()
 
     /// 文件名
@@ -356,13 +352,18 @@ public struct Statvfs: Identifiable, Equatable {
     }
 
     /// 计算总容量（字节 Bytes）
-    public var totalSpace: UInt64 {
-        frsize * blocks
+    public var totalSpace: Int64 {
+        Int64(frsize * blocks)
     }
 
     /// 计算可用空间（字节 Bytes）
-    public var freeSpace: UInt64 {
-        frsize * bfree
+    public var freeSpace: Int64 {
+        Int64(frsize * bfree)
+    }
+
+    /// 计算已使用空间（字节 Bytes）
+    public var usedSpace: Int64 {
+        totalSpace - freeSpace
     }
 }
 
@@ -475,5 +476,9 @@ public extension FileMode {
     /// 获取权限的八进制字符串表示（如 "755"）
     var str: String {
         String(format: "%03O", self & 0o777)
+    }
+
+    var isDirectory: Bool {
+        fileType == .directory
     }
 }
