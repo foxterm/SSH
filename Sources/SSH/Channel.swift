@@ -91,8 +91,6 @@ public extension Channel {
             return false
         }
 
-        libssh2_channel_set_blocking(rawChannel, 0)
-
         await ssh.channelPoll.register(
             handle: rawChannel!,
             output: output,
