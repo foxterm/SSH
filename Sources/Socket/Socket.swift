@@ -24,13 +24,6 @@ public struct Socket: Sendable {
 
 public extension Socket {
     /// 检查 Socket 连接是否仍然存活且正常
-    ///
-    /// 检查步骤：
-    /// 1. 验证文件描述符合法性；
-    /// 2. 使用 `getsockopt` 检查套接字层面的错误标志 (`SO_ERROR`)；
-    /// 3. 使用 `MSG_PEEK | MSG_DONTWAIT` 进行非阻塞预读，检测对端是否优雅关闭（收到 FIN 包）或发生连接重置。
-    ///
-    /// - Returns: `true` 表示连接正常；`false` 表示连接已断开或失效。
     var isConnected: Bool {
         guard fd >= 0 else { return false }
 
@@ -49,7 +42,6 @@ public extension Socket {
             return false
         } else if peekResult < 0 {
             // EAGAIN / EWOULDBLOCK 表示缓冲区当前无数据但连接健康
-            // 其余 errno (如 ECONNRESET, ENOTCONN) 均表示连接异常
             return errno == EAGAIN || errno == EWOULDBLOCK
         }
 
@@ -60,9 +52,6 @@ public extension Socket {
     /// 关闭或优雅终止 Socket 连接
     ///
     /// - Parameter how: 终止模式，默认为 `.rw`（同时关闭读写通道并释放资源）
-    ///   - `.rw`: 关闭读写通道并调用 `close()` 释放文件描述符；
-    ///   - `.r`: 仅关闭读取通道；
-    ///   - `.w`: 仅关闭写入通道。
     mutating func shutdown(_ how: Shout = .rw) {
         guard fd >= 0 else { return }
         if how == .rw {
@@ -74,12 +63,6 @@ public extension Socket {
     }
 
     /// 异步创建 Socket 并建立网络连接（支持超时控制与 SO_NOSIGPIPE 防爆）
-    ///
-    /// - Parameters:
-    ///   - host: 目标主机名或 IP 地址
-    ///   - port: 目标端口号
-    ///   - timeout: 连接超时时间（秒）
-    /// - Returns: 初始化并连接成功的 `Socket` 对象；若失败则返回 `fd` 为 `-1` 的 Socket。
     static func create(_ host: String, _ port: String, _ timeout: Int) async -> Socket {
         await io.call {
             var socket = Socket()
@@ -140,9 +123,6 @@ public extension Socket {
     }
 
     /// 设置 Socket 的阻塞模式
-    /// - Parameter isBlocking: `true` 切换为阻塞模式，`false` 切换为非阻塞模式
-    /// - Returns: `true` 表示切换成功；`false` 表示失败或句柄无效
-    @discardableResult
     func setBlocking(_ isBlocking: Bool) -> Bool {
         guard fd >= 0 else { return false }
         let flags = fcntl(fd, F_GETFL, 0)
@@ -153,18 +133,11 @@ public extension Socket {
     }
 
     /// 将 Socket 设置为非阻塞模式
-    /// - Returns: `true` 表示成功，`false` 表示失败
-    @discardableResult
     func setNonBlocking() -> Bool {
         setBlocking(false)
     }
 
     /// 发送数据到 Socket (已增强抗 SIGPIPE 风险)
-    /// - Parameters:
-    ///   - buffer: 包含发送数据的内存指针
-    ///   - length: 准备发送的字节数
-    ///   - flags: 行为标志控制，默认增加 `MSG_NOSIGNAL` 屏蔽崩溃信号
-    /// - Returns: 成功返回已发送的字节数，失败返回负数系统错误码 (`-errno`)
     @inline(__always)
     func send(_ buffer: UnsafeRawPointer, _ length: Int, _ flags: Int32 = MSG_NOSIGNAL) -> Int {
         guard fd >= 0 else { return -Int(EBADF) }
@@ -173,11 +146,6 @@ public extension Socket {
     }
 
     /// 从 Socket 接收数据
-    /// - Parameters:
-    ///   - buffer: 用于存放接收数据的内存指针
-    ///   - length: 准备读取的最大字节容量
-    ///   - flags: 行为控制标志，默认 `0`
-    /// - Returns: 成功返回实际接收到的字节数（0 表示 EOF），失败返回负数系统错误码 (`-errno`)
     @inline(__always)
     func recv(_ buffer: UnsafeMutableRawPointer, _ length: Int, _ flags: Int32 = 0) -> Int {
         guard fd >= 0 else { return -Int(EBADF) }
@@ -186,10 +154,6 @@ public extension Socket {
     }
 
     /// 从套接字流中读取字节（低级文件描述符 API）
-    /// - Parameters:
-    ///   - buffer: 数据接收缓冲区指针
-    ///   - len: 读取字节上限
-    /// - Returns: 成功返回读取字节数，失败返回 `-errno`
     @inline(__always)
     func read(_ buffer: UnsafeMutableRawPointer, _ len: Int) -> Int {
         guard fd >= 0 else { return -Int(EBADF) }
@@ -198,10 +162,6 @@ public extension Socket {
     }
 
     /// 向套接字流中写入字节（低级文件描述符 API）
-    /// - Parameters:
-    ///   - buffer: 包含写入数据的指针
-    ///   - len: 写入字节长度
-    /// - Returns: 成功返回已写入字节数，失败返回 `-errno`
     @inline(__always)
     func write(_ buffer: UnsafeRawPointer, _ len: Int) -> Int {
         guard fd >= 0 else { return -Int(EBADF) }
