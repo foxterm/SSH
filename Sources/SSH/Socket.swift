@@ -20,13 +20,8 @@ public extension SSH {
             error = socketLastStrError
             return false
         }
+        keepalive()
         return true
-    }
-
-    /// 获取当前连接的主机名
-    /// - Returns: 主机名字符串
-    var hostname: String {
-        host
     }
 
     /// 通过代理服务器发起连接
@@ -41,7 +36,14 @@ public extension SSH {
             error = socketLastStrError
             return false
         }
+        keepalive()
         return true
+    }
+
+    /// 获取当前连接的主机名
+    /// - Returns: 主机名字符串
+    var hostname: String {
+        host
     }
 
     /// 内部数据发送方法
@@ -85,14 +87,17 @@ public extension SSH {
         etos_socket_is_connect(fd)
     }
 
+    /// 获取底层 Socket 的错误码
     var socketLastError: Int32 {
         etos_socket_last_error()
     }
 
+    /// 获取底层 Socket 的错误描述字符串
     var socketLastStrError: String {
         etos_socket_strerror(socketLastError).string
     }
 
+    /// 设置底层 Socket 的 keepalive
     internal func keepalive() {
         etos_socket_set_keepalive(fd, true, 5, 5, 10)
     }
