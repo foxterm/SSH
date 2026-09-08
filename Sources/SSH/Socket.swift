@@ -80,13 +80,7 @@ public extension SSH {
             return false
         }
 
-        // 获取 libssh2 期望的等待方向
         let dir = libssh2_session_block_directions(rawSession)
-
-        // 如果没有任何方向需要等待，说明不需要阻塞，直接返回 true 驱动下一步
-        if dir == 0 {
-            return true
-        }
 
         var pollFd = LIBSSH2_POLLFD()
         pollFd.type = LIBSSH2_POLLFD_SOCKET.uint8
@@ -94,22 +88,30 @@ public extension SSH {
         pollFd.events = 0
         pollFd.revents = 0
 
-        // 根据方向设置需要监听的事件
-        if (dir & LIBSSH2_SESSION_BLOCK_INBOUND) != 0 {
+        if dir == 0 {
             pollFd.events |= LIBSSH2_POLLFD_POLLIN.uint
-        }
-        if (dir & LIBSSH2_SESSION_BLOCK_OUTBOUND) != 0 {
-            pollFd.events |= LIBSSH2_POLLFD_POLLOUT.uint
+        } else {
+            if (dir & LIBSSH2_SESSION_BLOCK_INBOUND) != 0 {
+                pollFd.events |= LIBSSH2_POLLFD_POLLIN.uint
+            }
+            if (dir & LIBSSH2_SESSION_BLOCK_OUTBOUND) != 0 {
+                pollFd.events |= LIBSSH2_POLLFD_POLLOUT.uint
+            }
         }
 
-        // 调用 libssh2_poll 阻塞等待事件或超时
-        let rc = libssh2_poll(&pollFd, 1, 20)
+        let rc = libssh2_poll(&pollFd, 1, 50)
+
         if rc < 0 {
-            // Poll 出错
+            return false
+        } else if rc == 0 {
+            return true
+        }
+
+        let revents = Int32(pollFd.revents)
+        if (revents & (LIBSSH2_POLLFD_POLLERR | LIBSSH2_POLLFD_POLLEXT | LIBSSH2_POLLFD_POLLHUP)) != 0 {
             return false
         }
 
-        // 返回 true 让 libssh2 继续尝试执行下一步非阻塞操作
         return true
     }
 
