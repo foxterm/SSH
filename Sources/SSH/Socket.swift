@@ -42,8 +42,18 @@ public extension SSH {
 
     /// 获取当前连接的主机名
     /// - Returns: 主机名字符串
-    var hostname: String {
-        host
+    var hostname: String? {
+        var ipBuffer = [CChar](repeating: 0, count: 64)
+        var port: Int32 = 0
+
+        let result = etos_socket_get_peer_info(fd, &ipBuffer, ipBuffer.count, &port)
+
+        if result == 0 {
+            let host = ipBuffer.string
+            return Net.joinHostPort(host: host, port: port.int)
+        }
+
+        return nil
     }
 
     /// 内部数据发送方法
