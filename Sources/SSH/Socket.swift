@@ -104,7 +104,7 @@ public extension SSH {
             }
         }
 
-        let rc = libssh2_poll(&pollFd, 1, 50)
+        let rc = libssh2_poll(&pollFd, 1, 10)
 
         if rc < 0 {
             return false
