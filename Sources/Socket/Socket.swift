@@ -89,18 +89,15 @@ public extension Socket {
                 let newFd = Darwin.socket(info.pointee.ai_family, info.pointee.ai_socktype, info.pointee.ai_protocol)
                 guard newFd >= 0 else { return false }
 
-                // 1. 设置 SO_NOSIGPIPE 防止写入断开的 Socket 时触发 SIGPIPE 导致进程崩溃
                 var optVal: Int32 = 1
                 setsockopt(newFd, SOL_SOCKET, SO_NOSIGPIPE, &optVal, socklen_t(MemoryLayout<Int32>.size))
 
-                // 2. 切换为非阻塞模式以支持自定义超时
                 let originalFlags = fcntl(newFd, F_GETFL, 0)
                 guard originalFlags >= 0, fcntl(newFd, F_SETFL, originalFlags | O_NONBLOCK) != -1 else {
                     Darwin.close(newFd)
                     return false
                 }
 
-                // 3. 尝试发起连接
                 let connectResult = Darwin.connect(newFd, info.pointee.ai_addr, info.pointee.ai_addrlen)
                 if connectResult != 0 {
                     guard errno == EINPROGRESS else {
@@ -108,18 +105,15 @@ public extension Socket {
                         return false
                     }
 
-                    // 4. 使用 poll 监听写入就绪（支持毫秒级超时检测）
                     var pollFd = pollfd(fd: newFd, events: Int16(POLLOUT), revents: 0)
                     let timeoutMs = max(timeout, 1) * 1000
                     let pollResult = poll(&pollFd, 1, Int32(timeoutMs))
 
-                    // pollResult <= 0 表示超时(0)或轮询出错(<0)
                     if pollResult <= 0 {
                         Darwin.close(newFd)
                         return false
                     }
 
-                    // 5. 校验异步连接的最终结果 (SO_ERROR)
                     var socketError: Int32 = 0
                     var errorLength = socklen_t(MemoryLayout<Int32>.size)
                     getsockopt(newFd, SOL_SOCKET, SO_ERROR, &socketError, &errorLength)
@@ -130,18 +124,6 @@ public extension Socket {
                     }
                 }
 
-                // 6. 恢复 Socket 原始阻塞状态
-                _ = fcntl(newFd, F_SETFL, originalFlags)
-
-                // 7. 动态设置读写超时选项 (SO_SNDTIMEO & SO_RCVTIMEO)
-                if timeout > 0 {
-                    var timeoutStruct = Darwin.timeval(tv_sec: timeout, tv_usec: 0)
-                    let timevalLen = socklen_t(MemoryLayout<Darwin.timeval>.size)
-                    setsockopt(newFd, SOL_SOCKET, SO_SNDTIMEO, &timeoutStruct, timevalLen)
-                    setsockopt(newFd, SOL_SOCKET, SO_RCVTIMEO, &timeoutStruct, timevalLen)
-                }
-
-                // 8. 解析规范化的数字形式 IP 地址
                 let buf: Buffer<CChar> = .init(Int(NI_MAXHOST))
                 guard Darwin.getnameinfo(info.pointee.ai_addr, info.pointee.ai_addrlen, buf.buffer, socklen_t(buf.count), nil, 0, NI_NUMERICHOST) == 0 else {
                     Darwin.close(newFd)
