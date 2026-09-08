@@ -102,14 +102,14 @@ public class SSH {
         self.compress = compress
         // 确保 Banner 格式符合 SSH 规范（必须以 SSH- 开头）
         clientbanner = !banner.isEmpty && banner.hasPrefix("SSH-") ? banner : SSH.banner
-        Mutex.shared.withLock {
+        Mutex.shared.withVoid {
             libssh2_init(0)
         }
     }
 
     deinit {
         close()
-        Mutex.shared.withLock {
+        Mutex.shared.withVoid {
             libssh2_exit()
         }
         #if DEBUG
