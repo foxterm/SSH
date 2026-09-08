@@ -93,3 +93,21 @@ public extension Int64 {
         ByteCountFormatter.string(fromByteCount: self, countStyle: .decimal)
     }
 }
+
+public extension UInt64 {
+    var byteFormatterBinary: String {
+        int64.byteFormatterBinary
+    }
+
+    var byteFormatterFile: String {
+        int64.byteFormatterFile
+    }
+
+    var byteFormatterMemory: String {
+        int64.byteFormatterMemory
+    }
+
+    var byteFormatterDecimal: String {
+        int64.byteFormatterDecimal
+    }
+}
