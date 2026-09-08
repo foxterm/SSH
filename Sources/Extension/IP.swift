@@ -54,12 +54,12 @@ public extension IP {
         }
     }
 
-    /// A computed property that checks if the IP address is a fake IP.
+    /// 检查 IP 地址是否为伪造 IP（Fake IP）的计算属性。
     ///
-    /// This property converts the string representation of the IP address to a binary format
-    /// and checks if it falls within the range of fake IP addresses (198.18.0.0 to 198.19.255.255).
+    /// 该属性将 IP 地址的字符串形式转换为二进制格式，
+    /// 并检查其是否落入伪造 IP 地址范围（198.18.0.0 至 198.19.255.255）。
     ///
-    /// - Returns: `true` if the IP address is a fake IP, `false` otherwise.
+    /// - Returns: 如果 IP 地址是伪造 IP 则返回 `true`，否则返回 `false`。
     var isFakeIP: Bool {
         var addr = in_addr()
         guard inet_pton(AF_INET, self, &addr) == 1 else { return false }
@@ -71,138 +71,67 @@ public extension IP {
         return false
     }
 
-    /// A computed property that checks if the string is a valid IPv4 address.
+    /// 检查字符串是否为有效 IPv4 地址的计算属性。
     ///
-    /// This property uses the `inet_pton` function to determine if the string
-    /// can be converted to a valid IPv4 address.
+    /// 该属性使用 `inet_pton` 函数判断字符串是否可以转换为有效的 IPv4 地址。
     ///
-    /// - Returns: `true` if the string is a valid IPv4 address, `false` otherwise.
+    /// - Returns: 如果字符串是有效的 IPv4 地址则返回 `true`，否则返回 `false`。
     var isIPv4: Bool {
         var addr = in_addr()
         return inet_pton(AF_INET, self, &addr) == 1
     }
 
-    /// A computed property that checks if the given IP address string is an IPv6 address.
+    /// 检查给定的 IP 地址字符串是否为 IPv6 地址的计算属性。
     ///
-    /// This property uses the `inet_pton` function to determine if the IP address string
-    /// can be successfully converted to an IPv6 address.
+    /// 该属性使用 `inet_pton` 函数判断 IP 地址字符串是否可以成功转换为 IPv6 地址。
     ///
-    /// - Returns: A Boolean value indicating whether the IP address string is an IPv6 address.
+    /// - Returns: 指明该 IP 地址字符串是否为 IPv6 地址的布尔值。
     var isIPv6: Bool {
         var addr = in6_addr()
         return inet_pton(AF_INET6, self, &addr) == 1
     }
 
-    /// A computed property that checks if the IP address is a LAN (Local Area Network) IP address.
-    /// It returns `true` if the IP address is either an IPv4 LAN IP or an IPv6 LAN IP.
+    /// 检查 IP 地址是否为局域网（LAN）IP 地址的计算属性。
+    /// 如果 IP 地址是 IPv4 私有地址或 IPv6 私有地址，则返回 `true`。
     var isPrivateIP: Bool {
         isPrivateIPv4 || isPrivateIPv6
     }
 
-    /// A computed property that checks if the current instance is an IP address.
-    /// It returns `true` if the instance is either an IPv4 or IPv6 address.
+    /// 检查当前实例是否为有效 IP 地址的计算属性。
+    /// 如果实例是 IPv4 或 IPv6 地址，则返回 `true`。
     var isIP: Bool {
         isIPv4 || isIPv6
     }
 
+    /// 判断当前 IP 地址是否为公网 IP 的计算属性。
     var isPubIP: Bool {
         isIP && !isPrivateIP
     }
 
-    /// A computed property that returns the size of the IP address in bytes.
+    /// 返回以字节为单位的 IP 地址大小的计算属性。
     ///
-    /// - Returns: The size of the IP address in bytes, which is either the size of `in_addr` for IPv4 or `in6_addr` for IPv6.
+    /// - Returns: 以字节为单位的 IP 地址大小；IPv4 返回 `in_addr` 的大小，IPv6 返回 `in6_addr` 的大小。
     var size: Int {
         isIPv4 ? MemoryLayout<in_addr>.size : MemoryLayout<in6_addr>.size
     }
 
-    /// A computed property that returns the address family of the IP address.
+    /// 返回 IP 地址的协议族（Address Family）的计算属性。
     ///
-    /// - Returns: The address family as an `Int32`, which is `AF_INET` for IPv4 or `AF_INET6` for IPv6.
+    /// - Returns: `Int32` 类型的协议族；IPv4 返回 `AF_INET`，IPv6 返回 `AF_INET6`。
     var af: Int32 {
         isIPv4 ? AF_INET : AF_INET6
     }
 
-    /// The `addr` computed property attempts to convert the current IP address string into its binary representation as a `Data` object.
+    /// `addr` 计算属性尝试将当前 IP 地址字符串转换为 `Data` 对象形式的二进制表示。
     ///
-    /// - Returns: A `Data` object containing the raw bytes of the IP address if conversion is successful; otherwise, `nil`.
+    /// - Returns: 转换成功时返回包含 IP 地址原始字节的 `Data` 对象；否则返回 `nil`。
     ///
-    /// - Note: This property uses the `inet_pton` function to perform the conversion. It is important to ensure that the IP address string is properly formatted for the address family (`AF_INET` for IPv4 or `AF_INET6` for IPv6) before calling this property.
+    /// - Note: 该属性使用 `inet_pton` 函数进行转换。调用前请确保 IP 地址字符串针对协议族（IPv4 对应 `AF_INET`，IPv6 对应 `AF_INET6`）格式正确。
     var addr: Data? {
         var bytes = [UInt8](repeating: 0, count: size)
         guard inet_pton(af, self, &bytes) == 1 else {
             return nil
         }
         return Data(bytes)
-    }
-
-    /// Resolves the given domain name to a list of IP addresses.
-    ///
-    /// - Parameter domain: The domain name to resolve.
-    /// - Returns: An array of IP addresses associated with the given domain name.
-    static func resolveDomainName(_ domain: String) async -> [IP] {
-        await io.call {
-            if domain.isIP {
-                return [domain]
-            }
-            var results = [IP]()
-            getAddrInfo(host: domain) { info in
-                var hostname = [CChar](repeating: 0, count: Int(NI_MAXHOST))
-                if Darwin.getnameinfo(
-                    info.pointee.ai_addr,
-                    info.pointee.ai_addrlen,
-                    &hostname,
-                    socklen_t(hostname.count),
-                    nil,
-                    0,
-                    NI_NUMERICHOST
-                ) == 0 {
-                    results.append(hostname.string)
-                }
-                return false
-            }
-            return results
-        }
-    }
-
-    /// The `getAddrInfo` static method retrieves address information for a given host and optional port.
-    ///
-    /// - Parameters:
-    ///   - host: The hostname or IP address to resolve.
-    ///   - port: (Optional) The port number to be used in the address resolution. If not provided, the default port will be used.
-    ///   - callback: A closure that takes an `UnsafeMutablePointer<addrinfo>` as its parameter. This closure will be called for each address information structure retrieved. If the closure returns `true`, the iteration will stop.
-    ///
-    /// - Description:
-    ///   This method uses the `getaddrinfo` function to resolve the given host and port into a linked list of `addrinfo` structures. It then iterates over this list, calling the provided callback for each structure. If the callback returns `true`, the iteration stops. The method ensures that allocated memory for address information is freed using `freeaddrinfo` before it completes.
-    ///
-    /// - Note:
-    ///   This method uses the Darwin framework's `addrinfo` and related functions, which are part of the POSIX standard for network programming on Unix-like operating systems.
-    static func getAddrInfo(
-        host: String,
-        port: String? = nil,
-        _ callback: @escaping (UnsafeMutablePointer<addrinfo>) -> Bool
-    ) {
-        var hints = Darwin.addrinfo()
-        hints.ai_family = AF_UNSPEC
-        hints.ai_socktype = SOCK_STREAM
-        hints.ai_flags = AI_ADDRCONFIG | AI_CANONNAME
-        hints.ai_protocol = IPPROTO_TCP
-
-        var addrInfo: UnsafeMutablePointer<Darwin.addrinfo>?
-        let result = Darwin.getaddrinfo(host, port, &hints, &addrInfo)
-        guard result == 0, addrInfo != nil else {
-            return
-        }
-        defer {
-            Darwin.freeaddrinfo(addrInfo)
-        }
-        for info in sequence(first: addrInfo, next: { $0?.pointee.ai_next }) {
-            guard let info else {
-                continue
-            }
-            if callback(info) {
-                break
-            }
-        }
     }
 }
