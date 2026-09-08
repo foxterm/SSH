@@ -90,13 +90,26 @@ const char *etos_socket_strerror(int errnum);
  * @brief 获取已连接套接字的远端 IP 和端口
  *
  * @param fd Socket 文件描述符
- * @param ip_buf 用于接收 IP 字符串的缓冲区 (建议长度 >= INET6_ADDRSTRLEN，即 46 字节)
+ * @param ip_buf 用于接收 IP 字符串的缓冲区 (建议长度 >= INET6_ADDRSTRLEN，即 46
+ * 字节)
  * @param ip_buf_len 缓冲区长度
  * @param port 用于接收端口号的指针
  * @return int 成功返回 0，失败返回 -1
  */
-int etos_socket_get_peer_info(int fd, char *ip_buf, size_t ip_buf_len, int *port);
-
+int etos_socket_get_peer_info(int fd, char *ip_buf, size_t ip_buf_len,
+                              int *port);
+/**
+ * @brief 获取套接字的本地 (Client) IP 和端口
+ *
+ * @param fd Socket 文件描述符
+ * @param ip_buf 用于接收 IP 字符串的缓冲区 (建议长度 >= INET6_ADDRSTRLEN，即 46
+ * 字节)
+ * @param ip_buf_len 缓冲区长度
+ * @param port 用于接收端口号的指针
+ * @return int 成功返回 0，失败返回 -1
+ */
+int etos_socket_get_local_info(int fd, char *ip_buf, size_t ip_buf_len,
+                               int *port);
 
 #ifdef __cplusplus
 }
