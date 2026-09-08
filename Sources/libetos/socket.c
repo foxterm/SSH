@@ -1,14 +1,17 @@
 #include "socket.h"
-
 #include <arpa/inet.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <netdb.h>
 #include <netinet/in.h>
 #include <netinet/tcp.h>
+#include <openssl/bio.h>
+#include <openssl/buffer.h>
+#include <openssl/evp.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <unistd.h>
@@ -16,11 +19,14 @@
 /* ------------------------------------------------------------
    内部辅助函数
    ------------------------------------------------------------ */
-
 /* 设置 SO_NOSIGPIPE 防止写入已断开 socket 导致进程崩溃 */
 static void set_nosigpipe(int fd) {
+#ifdef SO_NOSIGPIPE
   int optval = 1;
   setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE, &optval, sizeof(optval));
+#else
+  (void)fd;
+#endif
 }
 
 /* 专用于代理握手的严格读取辅助函数 */
@@ -51,6 +57,7 @@ static int connect_with_timeout(int fd, const struct sockaddr *addr,
 
   int ret = connect(fd, addr, addrlen);
   if (ret < 0 && errno != EINPROGRESS) {
+    etos_socket_set_blocking(fd, true);
     return -1;
   }
 
@@ -71,6 +78,7 @@ static int connect_with_timeout(int fd, const struct sockaddr *addr,
 
   ret = select(fd + 1, NULL, &wset, &eset, &tv);
   if (ret <= 0) {
+    etos_socket_set_blocking(fd, true);
     return -1;
   }
 
@@ -79,6 +87,7 @@ static int connect_with_timeout(int fd, const struct sockaddr *addr,
   if (getsockopt(fd, SOL_SOCKET, SO_ERROR, &error, &len) < 0 || error != 0) {
     if (error != 0)
       errno = error;
+    etos_socket_set_blocking(fd, true);
     return -1;
   }
 
@@ -106,6 +115,239 @@ static int extract_sockaddr_info(const struct sockaddr_storage *addr,
   }
   return 0;
 }
+
+/* Base64 编码 (由调用方使用 free() 释放内存) */
+char *etos_base64_encode(const char *input) {
+  if (!input)
+    return NULL;
+  BIO *b64 = BIO_new(BIO_f_base64());
+  BIO *mem = BIO_new(BIO_s_mem());
+  BIO_push(b64, mem);
+  BIO_set_flags(b64, BIO_FLAGS_BASE64_NO_NL);
+  BIO_write(b64, input, (int)strlen(input));
+  BIO_flush(b64);
+  BUF_MEM *ptr;
+  BIO_get_mem_ptr(mem, &ptr);
+  char *out = (char *)malloc(ptr->length + 1);
+  if (out) {
+    memcpy(out, ptr->data, ptr->length);
+    out[ptr->length] = '\0';
+  }
+  BIO_free_all(b64);
+  return out;
+}
+
+/* HTTP CONNECT 代理握手 (包含 Basic 认证与严格响应判断) */
+static bool handshake_http_proxy(int fd, const char *target_host,
+                                 int target_port, const char *user,
+                                 const char *password, int timeout_ms) {
+  if (!target_host || target_port <= 0 || target_port > 65535) {
+    return false;
+  }
+
+  char req[1024];
+  int len = 0;
+
+  /* 1. 构建 Basic 认证 Header (如果有用户名密码) */
+  char auth_header[512] = "";
+  if (user && password && user[0] != '\0') {
+    char auth_raw[256];
+    snprintf(auth_raw, sizeof(auth_raw), "%s:%s", user, password);
+    char *auth_b64 = etos_base64_encode(auth_raw);
+    if (auth_b64) {
+      snprintf(auth_header, sizeof(auth_header),
+               "Proxy-Authorization: Basic %s\r\n", auth_b64);
+      free(auth_b64);
+    }
+  }
+
+  /* 2. 区分 IPv6 / IPv4 构建 CONNECT 请求 */
+  struct in6_addr dummy_v6;
+  if (inet_pton(AF_INET6, target_host, &dummy_v6) == 1) {
+    len = snprintf(req, sizeof(req),
+                   "CONNECT [%s]:%d HTTP/1.1\r\n"
+                   "Host: [%s]:%d\r\n"
+                   "%s\r\n",
+                   target_host, target_port, target_host, target_port,
+                   auth_header);
+  } else {
+    len = snprintf(req, sizeof(req),
+                   "CONNECT %s:%d HTTP/1.1\r\n"
+                   "Host: %s:%d\r\n"
+                   "%s\r\n",
+                   target_host, target_port, target_host, target_port,
+                   auth_header);
+  }
+
+  if (len < 0 || len >= (int)sizeof(req) ||
+      etos_socket_send_timeout(fd, req, len, 0, timeout_ms) <= 0) {
+    return false;
+  }
+
+  /* 3. 接收并读取 HTTP 响应头 */
+  char resp[2048];
+  size_t resp_len = 0;
+  bool header_complete = false;
+
+  while (resp_len < sizeof(resp) - 1) {
+    ssize_t rc = etos_socket_recv_timeout(
+        fd, resp + resp_len, sizeof(resp) - 1 - resp_len, 0, timeout_ms);
+    if (rc <= 0)
+      break;
+    resp_len += rc;
+    resp[resp_len] = '\0';
+
+    if (strstr(resp, "\r\n\r\n") != NULL) {
+      header_complete = true;
+      break;
+    }
+  }
+
+  if (!header_complete) {
+    return false;
+  }
+
+  /* 4. 严格校验响应首行状态码是否为 200 */
+  if (strncasecmp(resp, "HTTP/1.0 200", 12) == 0 ||
+      strncasecmp(resp, "HTTP/1.1 200", 12) == 0) {
+    return true;
+  }
+
+  return false;
+}
+
+/* SOCKS5 代理握手 */
+static bool handshake_socks5_proxy(int fd, const char *target_host,
+                                   int target_port, const char *user,
+                                   const char *password, int timeout_ms) {
+  if (!target_host || target_port <= 0 || target_port > 65535) {
+    return false;
+  }
+
+  /* ---------------- Step 1: 方法协商 ---------------- */
+  unsigned char auth_req[3];
+  auth_req[0] = 0x05; // SOCKS Version
+  auth_req[1] = 0x01; // 方法数量: 1
+  auth_req[2] = (user && password && user[0] != '\0')
+                    ? 0x02
+                    : 0x00; // 0x02: 账号密码, 0x00: 匿名
+
+  if (etos_socket_send_timeout(fd, (char *)auth_req, 3, 0, timeout_ms) <= 0) {
+    return false;
+  }
+
+  unsigned char auth_resp[2] = {0};
+  if (!recv_exact(fd, auth_resp, 2, timeout_ms) || auth_resp[0] != 0x05) {
+    return false;
+  }
+
+  /* ---------------- Step 2: 账号密码认证 (若代理要求 0x02) ---------------- */
+  if (auth_resp[1] == 0x02) {
+    if (!user || !password)
+      return false;
+
+    size_t ulen = strlen(user);
+    size_t plen = strlen(password);
+    if (ulen > 255 || plen > 255)
+      return false;
+
+    unsigned char pass_req[512];
+    size_t pass_len = 0;
+    pass_req[pass_len++] = 0x01; // 账号密码子协议版本
+    pass_req[pass_len++] = (unsigned char)ulen;
+    memcpy(&pass_req[pass_len], user, ulen);
+    pass_len += ulen;
+    pass_req[pass_len++] = (unsigned char)plen;
+    memcpy(&pass_req[pass_len], password, plen);
+    pass_len += plen;
+
+    if (etos_socket_send_timeout(fd, (char *)pass_req, pass_len, 0,
+                                 timeout_ms) <= 0) {
+      return false;
+    }
+
+    unsigned char pass_resp[2] = {0};
+    if (!recv_exact(fd, pass_resp, 2, timeout_ms) || pass_resp[1] != 0x00) {
+      return false; // 账号密码校验失败
+    }
+  } else if (auth_resp[1] != 0x00) {
+    return false; // 代理拒绝了协商的认证方式
+  }
+
+  /* ---------------- Step 3: 发送 CONNECT 请求 ---------------- */
+  unsigned char conn_req[300];
+  size_t p = 0;
+
+  conn_req[p++] = 0x05; // VER: SOCKS5
+  conn_req[p++] = 0x01; // CMD: CONNECT
+  conn_req[p++] = 0x00; // RSV: 保留字段
+
+  struct in_addr addr4;
+  struct in6_addr addr6;
+
+  if (inet_pton(AF_INET, target_host, &addr4) == 1) {
+    conn_req[p++] = 0x01; // ATYP: IPv4 (4 字节)
+    memcpy(&conn_req[p], &addr4, 4);
+    p += 4;
+  } else if (inet_pton(AF_INET6, target_host, &addr6) == 1) {
+    conn_req[p++] = 0x04; // ATYP: IPv6 (16 字节)
+    memcpy(&conn_req[p], &addr6, 16);
+    p += 16;
+  } else {
+    size_t target_len = strlen(target_host);
+    if (target_len > 255)
+      return false;
+    conn_req[p++] = 0x03; // ATYP: Domain (1 字节长度 + N 字节域名)
+    conn_req[p++] = (unsigned char)target_len;
+    memcpy(&conn_req[p], target_host, target_len);
+    p += target_len;
+  }
+
+  // 写入目标端口 (网络大端序)
+  unsigned short net_port = htons((unsigned short)target_port);
+  memcpy(&conn_req[p], &net_port, 2);
+  p += 2;
+
+  if (etos_socket_send_timeout(fd, (char *)conn_req, p, 0, timeout_ms) <= 0) {
+    return false;
+  }
+
+  /* ---------------- Step 4: 读取并解析 CONNECT 响应 ---------------- */
+  unsigned char head[4];
+  if (!recv_exact(fd, head, 4, timeout_ms)) {
+    return false;
+  }
+
+  if (head[0] != 0x05 || head[1] != 0x00) {
+    // head[1] 是 REP 状态码，0x00 才是 Success。常见的有 0x01 (普通失败)、0x02
+    // (规则不允许)、0x04 (主机不可达) 等
+    return false;
+  }
+
+  /* ---------------- Step 5: 清理 BND.ADDR / BND.PORT 缓冲区 ----------------
+   */
+  size_t skip_bytes = 0;
+  if (head[3] == 0x01) { // IPv4
+    skip_bytes = 4 + 2;
+  } else if (head[3] == 0x04) { // IPv6
+    skip_bytes = 16 + 2;
+  } else if (head[3] == 0x03) { // Domain
+    unsigned char dlen = 0;
+    if (!recv_exact(fd, &dlen, 1, timeout_ms))
+      return false;
+    skip_bytes = (size_t)dlen + 2;
+  } else {
+    return false;
+  }
+
+  unsigned char dummy[260];
+  if (!recv_exact(fd, dummy, skip_bytes, timeout_ms)) {
+    return false;
+  }
+
+  return true;
+}
+
 /* ------------------------------------------------------------
    外部接口实现
    ------------------------------------------------------------ */
@@ -159,188 +401,21 @@ int etos_socket_connect_proxy(int type, const char *proxy_host, int proxy_port,
   if (fd < 0)
     return ETOS_INVALID_SOCKET;
 
-  /* ---------------- HTTP PROXY ---------------- */
+  bool ok = false;
   if (type == ETOS_PROXY_HTTP) {
-    char req[512];
-    int len;
-
-    // 判断目标 host 是否为 IPv6 字面量 (例如 "::1")
-    struct in6_addr dummy_v6;
-    if (inet_pton(AF_INET6, target_host, &dummy_v6) == 1) {
-      // IPv6 目标需要使用 [] 包裹格式
-      len = snprintf(req, sizeof(req),
-                     "CONNECT [%s]:%d HTTP/1.1\r\nHost: [%s]:%d\r\n\r\n",
-                     target_host, target_port, target_host, target_port);
-    } else {
-      // IPv4 或 域名
-      len = snprintf(req, sizeof(req),
-                     "CONNECT %s:%d HTTP/1.1\r\nHost: %s:%d\r\n\r\n",
-                     target_host, target_port, target_host, target_port);
-    }
-
-    if (len < 0 || len >= (int)sizeof(req) ||
-        etos_socket_send_timeout(fd, req, len, 0, timeout_ms) <= 0) {
-      etos_socket_close(fd);
-      return ETOS_INVALID_SOCKET;
-    }
-
-    char resp[1024];
-    size_t resp_len = 0;
-    bool header_complete = false;
-
-    while (resp_len < sizeof(resp) - 1) {
-      ssize_t rc = etos_socket_recv_timeout(
-          fd, resp + resp_len, sizeof(resp) - 1 - resp_len, 0, timeout_ms);
-      if (rc <= 0)
-        break;
-      resp_len += rc;
-      resp[resp_len] = '\0';
-
-      if (strstr(resp, "\r\n\r\n") != NULL) {
-        header_complete = true;
-        break;
-      }
-    }
-
-    if (!header_complete ||
-        (strstr(resp, " 200 ") == NULL && strstr(resp, " 200\r\n") == NULL)) {
-      etos_socket_close(fd);
-      return ETOS_INVALID_SOCKET;
-    }
-    return fd;
+    ok = handshake_http_proxy(fd, target_host, target_port, user, password,
+                              timeout_ms);
+  } else if (type == ETOS_PROXY_SOCKS5) {
+    ok = handshake_socks5_proxy(fd, target_host, target_port, user, password,
+                                timeout_ms);
   }
 
-  /* ---------------- SOCKS5 PROXY ---------------- */
-  if (type == ETOS_PROXY_SOCKS5) {
-    unsigned char auth_req[3] = {0x05, 0x01, (user && password) ? 0x02 : 0x00};
-    if (etos_socket_send_timeout(fd, (char *)auth_req, 3, 0, timeout_ms) <= 0) {
-      etos_socket_close(fd);
-      return ETOS_INVALID_SOCKET;
-    }
-
-    unsigned char auth_resp[2] = {0};
-    if (!recv_exact(fd, auth_resp, 2, timeout_ms) || auth_resp[0] != 0x05) {
-      etos_socket_close(fd);
-      return ETOS_INVALID_SOCKET;
-    }
-
-    if (auth_resp[1] == 0x02) {
-      if (!user || !password) {
-        etos_socket_close(fd);
-        return ETOS_INVALID_SOCKET;
-      }
-
-      size_t ulen = strlen(user), plen = strlen(password);
-      if (ulen > 255 || plen > 255) {
-        etos_socket_close(fd);
-        return ETOS_INVALID_SOCKET;
-      }
-
-      unsigned char pass_req[512];
-      pass_req[0] = 0x01;
-      pass_req[1] = (unsigned char)ulen;
-      memcpy(&pass_req[2], user, ulen);
-      pass_req[2 + ulen] = (unsigned char)plen;
-      memcpy(&pass_req[3 + ulen], password, plen);
-
-      if (etos_socket_send_timeout(fd, (char *)pass_req, 3 + ulen + plen, 0,
-                                   timeout_ms) <= 0) {
-        etos_socket_close(fd);
-        return ETOS_INVALID_SOCKET;
-      }
-
-      unsigned char pass_resp[2] = {0};
-      if (!recv_exact(fd, pass_resp, 2, timeout_ms) || pass_resp[1] != 0x00) {
-        etos_socket_close(fd);
-        return ETOS_INVALID_SOCKET;
-      }
-    } else if (auth_resp[1] != 0x00) {
-      etos_socket_close(fd);
-      return ETOS_INVALID_SOCKET;
-    }
-
-    /* 校验目标地址类型并打包 CONNECT 请求 */
-    unsigned char conn_req[300];
-    size_t req_len = 0;
-
-    conn_req[0] = 0x05; // VER: SOCKS5
-    conn_req[1] = 0x01; // CMD: CONNECT
-    conn_req[2] = 0x00; // RSV
-
-    struct in_addr addr4;
-    struct in6_addr addr6;
-
-    if (inet_pton(AF_INET, target_host, &addr4) == 1) {
-      /* 1. 目标为标准 IPv4 */
-      conn_req[3] = 0x01; // ATYP: IPv4
-      memcpy(&conn_req[4], &addr4, 4);
-      req_len = 4 + 4;
-    } else if (inet_pton(AF_INET6, target_host, &addr6) == 1) {
-      /* 2. 目标为标准 IPv6 */
-      conn_req[3] = 0x04; // ATYP: IPv6
-      memcpy(&conn_req[4], &addr6, 16);
-      req_len = 4 + 16;
-    } else {
-      /* 3. 目标为域名 Domain Name */
-      size_t target_len = strlen(target_host);
-      if (target_len > 255) {
-        etos_socket_close(fd);
-        return ETOS_INVALID_SOCKET;
-      }
-      conn_req[3] = 0x03; // ATYP: Domain
-      conn_req[4] = (unsigned char)target_len;
-      memcpy(&conn_req[5], target_host, target_len);
-      req_len = 5 + target_len;
-    }
-
-    // 写入端口号 (大端序)
-    unsigned short net_port = htons((unsigned short)target_port);
-    memcpy(&conn_req[req_len], &net_port, 2);
-    req_len += 2;
-
-    if (etos_socket_send_timeout(fd, (char *)conn_req, req_len, 0,
-                                 timeout_ms) <= 0) {
-      etos_socket_close(fd);
-      return ETOS_INVALID_SOCKET;
-    }
-
-    /* 读取响应头 */
-    unsigned char head[4];
-    if (!recv_exact(fd, head, 4, timeout_ms) || head[1] != 0x00) {
-      etos_socket_close(fd);
-      return ETOS_INVALID_SOCKET;
-    }
-
-    /* 读取并清理代理服务端的绑字地址数据 (BND.ADDR + BND.PORT) */
-    size_t skip_bytes = 0;
-    if (head[3] == 0x01) { // IPv4: 4 字节 IP + 2 字节 Port
-      skip_bytes = 4 + 2;
-    } else if (head[3] == 0x04) { // IPv6: 16 字节 IP + 2 字节 Port
-      skip_bytes = 16 + 2;
-    } else if (head[3] ==
-               0x03) { // Domain: 1 字节 长度 + len 字节名 + 2 字节 Port
-      unsigned char dlen = 0;
-      if (!recv_exact(fd, &dlen, 1, timeout_ms)) {
-        etos_socket_close(fd);
-        return ETOS_INVALID_SOCKET;
-      }
-      skip_bytes = dlen + 2;
-    } else {
-      etos_socket_close(fd);
-      return ETOS_INVALID_SOCKET;
-    }
-
-    unsigned char dummy[260];
-    if (!recv_exact(fd, dummy, skip_bytes, timeout_ms)) {
-      etos_socket_close(fd);
-      return ETOS_INVALID_SOCKET;
-    }
-
-    return fd;
+  if (!ok) {
+    etos_socket_close(fd);
+    return ETOS_INVALID_SOCKET;
   }
 
-  etos_socket_close(fd);
-  return ETOS_INVALID_SOCKET;
+  return fd;
 }
 
 ssize_t etos_socket_send_timeout(int fd, const char *buf, size_t len, int flags,
