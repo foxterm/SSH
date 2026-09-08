@@ -20,51 +20,39 @@ public class Proxy: Sendable {
 
 public extension Proxy {
     /// 异步通过代理服务器建立到目标远程主机的 Socket 连接
-    ///
-    /// 建立连接流程：
-    /// 1. 创建到代理服务器的底层 TCP 套接字；
-    /// 2. 若目标为域名，解析 DNS 并遍历 IP 进行依次重试；
-    /// 3. 切换至阻塞模式完成代理协议握手（HTTP CONNECT 或 SOCKS5）；
-    /// 4. 握手成功后恢复非阻塞状态并返回，若全部失败则安全清理资源。
-    ///
-    /// - Parameters:
-    ///   - host: 目标远程主机的域名或 IP 地址
-    ///   - port: 目标远程主机的服务端口
-    ///   - timeout: 连接代理服务器的超时时间（秒），默认 5 秒
-    /// - Returns: 连接成功且完成代理握手的 `Socket` 实例；若失败则返回无效 Socket (`fd == -1`)
     func connect(_ host: String, _ port: String, _ timeout: Int = 5) async -> Socket {
-        var socket = await Socket.create(configuration.host, configuration.port, timeout)
-        guard socket.isConnected else {
-            return Socket()
-        }
-
-        // 切换为阻塞模式以安全执行同步代理握手
-        socket.setBlocking(true)
-
-        // 解析目标 host 对应的 IP 列表并逐个尝试建立代理通道
         let targetIPs = await IP.resolveDomainName(host)
         let candidateHosts = targetIPs.isEmpty ? [host] : targetIPs
 
+        // 遍历所有 candidate IP，每次必须创建【全新的 Socket】进行尝试
         for ip in candidateHosts {
-            if performHandshake(on: socket, targetHost: ip, targetPort: port) {
-                // 代理握手成功，恢复非阻塞模式供上层 I/O 事件循环（如 SwiftNIO/Poll）使用
-                socket.setBlocking(false)
+            // 1. 创建到代理服务器的非阻塞 Socket
+            var socket = await Socket.create(configuration.host, configuration.port, timeout)
+            guard socket.isConnected else { continue }
+
+            // 2. 临时开启阻塞模式用于同步握手（设置 SO_RCVTIMEO 防止死锁）
+            _ = socket.setBlocking(true)
+            setSocketTimeouts(socket, timeout: timeout)
+
+            // 3. 执行代理握手
+            let handshakeSuccess = performHandshake(on: socket, targetHost: ip, targetPort: port)
+
+            if handshakeSuccess {
+                // 4. 握手成功：清除超时设置，切回 O_NONBLOCK 交给 SSH 引擎/Poll
+                clearSocketTimeouts(socket)
+                _ = socket.setBlocking(false)
                 return socket
+            } else {
+                // 握手失败：必须立刻关闭并回收当前套接字，尝试下一个 IP
+                socket.close()
             }
         }
 
-        // 所有尝试均失败，主动回收 Socket 句柄以防资源泄漏
-        socket.close()
+        // 所有尝试均失败
         return Socket()
     }
 
     /// 从 Socket 准确读取指定字节长度的数据（确保完全填满 Buffer）
-    ///
-    /// - Parameters:
-    ///   - socket: 底层网络套接字
-    ///   - buffer: 存放读取数据的内存目标指针
-    ///   - count: 需要读取的精确字节数
-    /// - Returns: `true` 表示精确读取到指定字节数；`false` 表示中途遇到 EOF、断开连接或 I/O 错误
     func readExactly(_ socket: Socket, buffer: UnsafeMutablePointer<UInt8>, count: Int) -> Bool {
         var totalRead = 0
         while totalRead < count {
@@ -79,12 +67,6 @@ public extension Proxy {
     }
 
     /// 针对 Socket 执行 HTTP / SOCKS5 代理协议握手的核心内部方法
-    ///
-    /// - Parameters:
-    ///   - socket: 已经建立 TCP 连接的代理 Socket
-    ///   - host: 目标主机地址
-    ///   - port: 目标主机端口
-    /// - Returns: `true` 握手成功并建立隧道，`false` 握手失败
     func performHandshake(on socket: Socket, targetHost host: String, targetPort port: String) -> Bool {
         switch configuration.type {
         case .http:
@@ -138,10 +120,11 @@ private extension Proxy {
     /// 执行 SOCKS5 代理协议三阶段握手（Greeting -> Auth -> Connect）
     func handshakeSOCKS5(on socket: Socket, targetHost host: String, targetPort port: String) -> Bool {
         // 1. 协商认证阶段 (Greeting)
+        // 修正：支持认证时，同时告知服务器支持 NO_AUTH(0x00) 与 USER_PASS(0x02)
         let hasAuth = !configuration.username.isEmpty || !configuration.password.isEmpty
-        var greeting: [UInt8] = hasAuth ? [0x05, 0x01, 0x02] : [0x05, 0x01, 0x00]
+        var greeting: [UInt8] = hasAuth ? [0x05, 0x02, 0x00, 0x02] : [0x05, 0x01, 0x00]
 
-        guard socket.write(&greeting, greeting.count) == greeting.count else { return false }
+        guard socket.write(greeting, greeting.count) == greeting.count else { return false }
 
         var responseBuffer = [UInt8](repeating: 0, count: 2)
         guard readExactly(socket, buffer: &responseBuffer, count: 2) else { return false }
@@ -153,16 +136,16 @@ private extension Proxy {
             let usernameBytes = [UInt8](configuration.username.utf8)
             let passwordBytes = [UInt8](configuration.password.utf8)
 
-            // 针对 RFC 1929 协议做 255 字节边界保护，防止溢出攻击
+            // 针对 RFC 1929 协议做 255 字节边界保护
             guard usernameBytes.count <= 255, passwordBytes.count <= 255 else { return false }
 
-            var authRequest: [UInt8] = [0x01, UInt8(usernameBytes.count)] + usernameBytes + [UInt8(passwordBytes.count)] + passwordBytes
-            guard socket.write(&authRequest, authRequest.count) == authRequest.count else { return false }
+            let authRequest: [UInt8] = [0x01, UInt8(usernameBytes.count)] + usernameBytes + [UInt8(passwordBytes.count)] + passwordBytes
+            guard socket.write(authRequest, authRequest.count) == authRequest.count else { return false }
 
             var authResponse = [UInt8](repeating: 0, count: 2)
             guard readExactly(socket, buffer: &authResponse, count: 2) else { return false }
             guard authResponse[0] == 0x01, authResponse[1] == 0x00 else { return false } // 0x00 代表认证成功
-        } else if responseBuffer[1] != 0x00 { // 0x00 代表无需认证，其余响应码均为失败或不匹配
+        } else if responseBuffer[1] != 0x00 {
             return false
         }
 
@@ -177,7 +160,7 @@ private extension Proxy {
             guard let addr = host.addr else { return false }
             request += addr
         } else {
-            request.append(0x03) // ATYP: 域名 (1 字节 Length + Domain 字节)
+            request.append(0x03) // ATYP: 域名
             let domainBytes = [UInt8](host.utf8)
             guard domainBytes.count <= 255 else { return false }
             request.append(UInt8(domainBytes.count))
@@ -188,29 +171,45 @@ private extension Proxy {
         let portNumber = UInt16(port) ?? 22
         request += [UInt8(portNumber >> 8), UInt8(portNumber & 0xFF)]
 
-        guard socket.write(&request, request.count) == request.count else { return false }
+        guard socket.write(request, request.count) == request.count else { return false }
 
         // 4. 解析 SOCKS5 CONNECT 响应头
         var header = [UInt8](repeating: 0, count: 4)
         guard readExactly(socket, buffer: &header, count: 4) else { return false }
         guard header[0] == 0x05, header[1] == 0x00 else { return false } // REP=0x00 代表连接成功
 
-        // 根据响应中的 ATYP 消费掉剩余的服务器绑定地址与端口，保持 Socket 缓冲区干净
+        // 根据响应中的 ATYP 消费掉剩余的服务器绑定地址与端口
         var remainingBytesCount = 0
         switch header[3] {
         case 0x01: // IPv4 (4 字节地址 + 2 字节端口)
             remainingBytesCount = 4 + 2
         case 0x04: // IPv6 (16 字节地址 + 2 字节端口)
             remainingBytesCount = 16 + 2
-        case 0x03: // 变长域名 (1 字节 Length + N 字节域名 + 2 字节端口)
-            var domainLen = [UInt8](repeating: 0, count: 1)
+        case 0x03: // 变长域名
+            var domainLen: UInt8 = 0
             guard readExactly(socket, buffer: &domainLen, count: 1) else { return false }
-            remainingBytesCount = Int(domainLen[0]) + 2
+            remainingBytesCount = Int(domainLen) + 2
         default:
             return false
         }
 
         var dummyBuffer = [UInt8](repeating: 0, count: remainingBytesCount)
         return readExactly(socket, buffer: &dummyBuffer, count: remainingBytesCount)
+    }
+
+    /// 针对阻塞模式设置读写超时，防止握手无限期挂起
+    func setSocketTimeouts(_ socket: Socket, timeout: Int) {
+        var tv = Darwin.timeval(tv_sec: max(timeout, 1), tv_usec: 0)
+        let len = socklen_t(MemoryLayout<Darwin.timeval>.size)
+        setsockopt(socket.fd, SOL_SOCKET, SO_RCVTIMEO, &tv, len)
+        setsockopt(socket.fd, SOL_SOCKET, SO_SNDTIMEO, &tv, len)
+    }
+
+    /// 恢复套接字超时配置（清空超时）
+    func clearSocketTimeouts(_ socket: Socket) {
+        var tv = Darwin.timeval(tv_sec: 0, tv_usec: 0)
+        let len = socklen_t(MemoryLayout<Darwin.timeval>.size)
+        setsockopt(socket.fd, SOL_SOCKET, SO_RCVTIMEO, &tv, len)
+        setsockopt(socket.fd, SOL_SOCKET, SO_SNDTIMEO, &tv, len)
     }
 }
