@@ -12,8 +12,6 @@ let package = Package(
         .library(name: "SSH", targets: ["SSH"]),
         .library(name: "Crypto", targets: ["Crypto"]),
         .library(name: "Extension", targets: ["Extension"]),
-        .library(name: "Socket", targets: ["Socket"]),
-        .library(name: "Proxy", targets: ["Proxy"]),
         .library(name: "Sync", targets: ["Sync"]),
     ],
     dependencies: [
@@ -33,8 +31,6 @@ let package = Package(
         .target(
             name: "SSH",
             dependencies: [
-                .target(name: "Proxy"),
-                .target(name: "Socket"),
                 .target(name: "Extension"),
                 .target(name: "Sync"),
                 .product(name: "CSSH2", package: "libssh2"),
@@ -47,19 +43,6 @@ let package = Package(
             name: "Sync",
             dependencies: [
                 .target(name: "libetos"),
-            ]
-        ),
-        .target(
-            name: "Socket",
-            dependencies: [
-                .target(name: "Extension"),
-            ]
-        ),
-        .target(
-            name: "Proxy",
-            dependencies: [
-                .target(name: "Extension"),
-                .target(name: "Socket"),
             ]
         ),
         .target(

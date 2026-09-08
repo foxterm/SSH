@@ -5,7 +5,6 @@
 import CSSH2
 import Extension
 import Foundation
-import Socket
 import Sync
 
 /// SSH 核心管理类，负责会话生命周期、底层 Socket 绑定及 libssh2 钩子函数分发
@@ -29,7 +28,7 @@ public class SSH {
     public weak var sessionDelegate: SessionDelegate?
 
     /// 底层 TCP 套接字文件描述符
-    public internal(set) var socket: Socket = .init()
+    public internal(set) var fd: Int32 = -1
 
     /// TCP 层参数配置
     public var ttl: Int32 = 0
@@ -58,9 +57,6 @@ public class SSH {
 
     /// 指向 libssh2_session 的原始 C 指针
     public internal(set) var rawSession: OpaquePointer?
-
-    /// Keepalive 心跳包定时器
-    var timer: DispatchSourceTimer?
 
     // MARK: - Libssh2 C 回调函数静态封装
 

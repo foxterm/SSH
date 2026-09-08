@@ -137,3 +137,48 @@ public struct HostKeySupport {
     /// 存在安全风险/已被弃用的算法列表（如 ssh-rsa, ssh-dss，已按权重排序）
     public let insecure: [String]
 }
+
+public enum Shout: Sendable {
+    /// 仅关闭读取通道
+    case r
+    /// 仅关闭写入通道
+    case w
+    /// 同时关闭读取与写入通道
+    case rw
+
+    /// 映射对应的 POSIX shutdown 常量
+    var raw: Int32 {
+        switch self {
+        case .r:
+            SHUT_RD
+        case .w:
+            SHUT_WR
+        case .rw:
+            SHUT_RDWR
+        }
+    }
+}
+
+/// 表示支持的网络代理协议类型枚举
+public enum ProxyType: String, CaseIterable, Codable, Sendable {
+    /// HTTP 代理协议 (HTTP CONNECT)
+    case http
+
+    /// SOCKS5 代理协议 (RFC 1928)
+    case socks5
+
+    /// 该代理协议的标准默认端口号（字符串形式）
+    public var portStr: String {
+        String(port)
+    }
+
+    /// 该代理协议的标准默认端口号（整数形式）
+    public var port: Int {
+        switch self {
+        case .http:
+            8080
+        case .socks5:
+            1080
+        }
+    }
+}
