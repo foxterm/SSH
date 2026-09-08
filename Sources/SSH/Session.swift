@@ -13,9 +13,7 @@ public extension SSH {
     /// - Returns: 握手成功返回 true，否则释放资源并返回 false
     func handshake() async -> Bool {
         // 初始化 libssh2 会话，将 self 指针传入以便在回调中获取上下文
-        rawSession = libssh2_session_init_ex(
-            nil, nil, nil, Unmanaged.passUnretained(self).toOpaque()
-        )
+        rawSession = ssh2_session_init_tracked(Unmanaged.passUnretained(self).toOpaque())
         guard let rawSession else {
             return false
         }
