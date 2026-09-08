@@ -146,7 +146,7 @@ extension ChannelPoll {
             let pollRc = pollFds.withUnsafeMutableBufferPointer { bp -> Int32 in
                 guard let baseAddress = bp.baseAddress, bp.count > 0 else { return 0 }
                 return mutex.withLock {
-                    libssh2_poll(baseAddress, UInt32(bp.count), 10)
+                    libssh2_poll(baseAddress, bp.count.uint32, 10)
                 }
             }
 
