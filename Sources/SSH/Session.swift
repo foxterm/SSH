@@ -292,6 +292,7 @@ public extension SSH {
             // 切换回阻塞模式以确保优雅退出
             sessionBlocking = true
             libssh2_session_disconnect_ex(rawSession, SSH_DISCONNECT_BY_APPLICATION, "Bye-Bye", "")
+            shutdown(.w)
             libssh2_session_free(rawSession)
             // 通知外部代理处理连接中断逻辑
             sessionDelegate?.disconnect()
