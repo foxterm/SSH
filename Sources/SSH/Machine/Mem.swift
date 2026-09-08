@@ -7,10 +7,7 @@ import Foundation
 
 public extension Machine {
     func getMemoryStat() async -> VirtualMemoryStat? {
-        // 强制使用 /bin/sh，通过 awk 格式化输出，确保 Zsh 下也不会解析错位
-        let gatherCmd = """
-        /bin/sh -c "awk '{print \\$1\\"|\\"\\$2}' /proc/meminfo | tr -d ':'"
-        """
+        let gatherCmd = #"awk '{print $1"|"$2}' /proc/meminfo | tr -d ':'"#
 
         guard let lines = await ssh.exec(gatherCmd)?.string?.lines else { return nil }
 

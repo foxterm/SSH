@@ -7,7 +7,8 @@ import Foundation
 
 public extension Machine {
     func getAvgStat() async -> AvgStat? {
-        let cmd = "/bin/sh -c \"if [ -f /proc/loadavg ]; then awk '{print \\$1\\\"|\\\"\\$2\\\"|\\\"\\$3}' /proc/loadavg; else uptime | awk -F'load average: ' '{print \\$2}' | sed 's/,//g; s/ /|/g'; fi\""
+        let cmd = #"if [ -f /proc/loadavg ]; then awk '{print $1"|"$2"|"$3}' /proc/loadavg; else uptime | awk -F'load average: ' '{print $2}' | sed 's/,//g; s/ /|/g'; fi"#
+
 
         guard let output = await ssh.exec(cmd)?.string?.trimmingCharacters(in: .whitespacesAndNewlines), !output.isEmpty else { return nil }
 
@@ -22,7 +23,7 @@ public extension Machine {
     }
 
     func getSystemStat() async -> SystemStat? {
-        let cmd = "/bin/sh -c \"if [ -f /proc/stat ]; then awk '/^(btime|ctxt|processes|procs_running|procs_blocked)/ {print \\$1\\\"|\\\"\\$2}' /proc/stat; elif command -v sysctl >/dev/null; then btime=\\$(sysctl -n kern.boottime | awk '{print \\$4}' | tr -d ','); echo \\\"btime|\\$btime\\\"; echo \\\"processes|\\$(ps ax | wc -l)\\\"; fi\""
+        let cmd = #"if [ -f /proc/stat ]; then awk '/^(btime|ctxt|processes|procs_running|procs_blocked)/ {print $1"|"$2}' /proc/stat; elif command -v sysctl >/dev/null; then btime=$(sysctl -n kern.boottime | awk '{print $4}' | tr -d ','); echo "btime|$btime"; echo "processes|$(ps ax | wc -l)"; fi"#
 
         guard let lines = await ssh.exec(cmd)?.string?.lines, !lines.isEmpty else { return nil }
 

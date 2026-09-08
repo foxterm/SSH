@@ -7,8 +7,7 @@ import Foundation
 
 public extension Machine {
     func getHostPlatform() async -> HostPlatform? {
-        let gatherCmd = "grep -E '^(ID|VERSION_ID|DISTRIB_ID|DISTRIB_RELEASE)=' /etc/*-release 2>/dev/null"
-
+        let gatherCmd = #"grep -E '^(ID|VERSION_ID|DISTRIB_ID|DISTRIB_RELEASE)=' /etc/*-release /etc/os-release 2>/dev/null"#
         guard let output = await ssh.exec(gatherCmd)?.string, !output.isEmpty else { return nil }
 
         let lines = output.lines.filter { !$0.isEmpty }

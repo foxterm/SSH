@@ -8,11 +8,7 @@ import Foundation
 public extension Machine {
     func getNetIOCountersStat() async -> [NetIOCountersStat]? {
         let boundary = "NET_STAT_BOUNDARY"
-        // 1. 提取 /proc/net/dev 的全部 16 个数据字段
-        // 2. 增加硬件属性读取循环
-        let gatherCmd = """
-        /bin/sh -c "sed 's/://g' /proc/net/dev | awk 'NR>2 {print \\$1\\"|\\"\\$2\\"|\\"\\$3\\"|\\"\\$4\\"|\\"\\$5\\"|\\"\\$6\\"|\\"\\$10\\"|\\"\\$11\\"|\\"\\$12\\"|\\"\\$13\\"|\\"\\$14}'; echo '\(boundary)'; sleep 1; sed 's/://g' /proc/net/dev | awk 'NR>2 {print \\$1\\"|\\"\\$2\\"|\\"\\$3\\"|\\"\\$4\\"|\\"\\$5\\"|\\"\\$6\\"|\\"\\$10\\"|\\"\\$11\\"|\\"\\$12\\"|\\"\\$13\\"|\\"\\$14}'; echo '\(boundary)'; for d in /sys/class/net/*; do [ -d \\"\\$d\\" ] && echo \\"hw|\\${d##*/}|\\$(cat \\$d/mtu 2>/dev/null || echo 0)|\\$(cat \\$d/speed 2>/dev/null || echo 0)|\\$(cat \\$d/address 2>/dev/null || echo unknown)\\"; done"
-        """
+        let gatherCmd = #"sed 's/://g' /proc/net/dev | awk 'NR>2 {print $1"|"$2"|"$3"|"$4"|"$5"|"$6"|"$10"|"$11"|"$12"|"$13"|"$14}'; echo "\#(boundary)"; sleep 1; sed 's/://g' /proc/net/dev | awk 'NR>2 {print $1"|"$2"|"$3"|"$4"|"$5"|"$6"|"$10"|"$11"|"$12"|"$13"|"$14}'; echo "\#(boundary)"; for d in /sys/class/net/*; do [ -d "$d" ] && echo "hw|${d##*/}|$(cat $d/mtu 2>/dev/null || echo 0)|$(cat $d/speed 2>/dev/null || echo 0)|$(cat $d/address 2>/dev/null || echo unknown)"; done"#
 
         guard let output = await ssh.exec(gatherCmd)?.string else { return nil }
         let sections = output.components(separatedBy: boundary)
@@ -38,10 +34,6 @@ public extension Machine {
 
             var io = NetIOCountersStat()
             io.name = name
-
-            // 索引映射说明：
-            // 0:bytes_r, 1:pkts_r, 2:err_r, 3:drop_r, 4:fifo_r
-            // 5:bytes_t, 6:pkts_t, 7:err_t, 8:drop_t, 9:fifo_t
 
             // 实时速率（差值）
             io.bytesRecv = d2[0] - d1[0]
@@ -80,7 +72,7 @@ public extension Machine {
     }
 
     func getNetConnStat() async -> [NetConnStat]? {
-        let gatherCmd = "/bin/sh -c \"for f in /proc/net/tcp /proc/net/tcp6 /proc/net/udp /proc/net/udp6; do [ -f \\$f ] && cat \\$f; done\""
+        let gatherCmd = #"for f in /proc/net/tcp /proc/net/tcp6 /proc/net/udp /proc/net/udp6; do [ -f $f ] && cat $f; done"#
 
         guard let output = await ssh.exec(gatherCmd)?.string else { return nil }
 
@@ -94,16 +86,13 @@ public extension Machine {
 
             let parts = trimmed.components(separatedBy: .whitespaces).filter { !$0.isEmpty }
 
-            // 2. 核心修复：索引解析
-            // 在 cat 的输出中，第一列是序号(sl)，第二列是 local_address，第三列是 rem_address
-            // 第四列才是状态码 (st) -> 索引为 3
+            // 2. 索引解析: 第 4 列为状态码 (st) -> 索引 3
             guard parts.count >= 4 else { continue }
 
             let stateHex = parts[3].uppercased()
             statsDict[stateHex, default: 0] += 1
         }
 
-        // 如果这时候 statsDict 还是空的，说明数据源有问题
         guard !statsDict.isEmpty else { return nil }
 
         return statsDict.map { hex, count in

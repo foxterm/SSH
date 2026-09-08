@@ -7,24 +7,13 @@ import Foundation
 
 public extension Machine {
     func getCPUTimesStat() async -> [CPUTimesStat]? {
-        let gatherCmd = """
-        /bin/sh -c "s1=\\$(cat /proc/stat | grep '^cpu'); sleep 1; s2=\\$(cat /proc/stat | grep '^cpu'); printf '%s\\n%s' \\"\\$s1\\" \\"\\$s2\\" | awk '
-        {
-            id=\\$1; 
-            val=\\$2; for(i=3;i<=11;i++) val=val\\"|\\"\\$i;
-            if(arr[id]) { print id\\"|\\"arr[id]\\"|\\"id\\"|\\"val }
-            else { arr[id]=val }
-        }'"
-        """
+        let gatherCmd = #"s1=$(cat /proc/stat | grep '^cpu'); sleep 1; s2=$(cat /proc/stat | grep '^cpu'); printf "%s\n%s" "$s1" "$s2" | awk '{id=$1; val=$2; for(i=3;i<=11;i++) val=val"|"$i; if(arr[id]) { print id"|"arr[id]"|"id"|"val } else { arr[id]=val }}'"#
 
-        // 注意：由于 Swift 字符串转义，脚本中的 $ 改为了 \\$
         guard let output = await ssh.exec(gatherCmd)?.string?.lines else { return nil }
 
         return output.compactMap { line in
-            // 现在输出格式严格为: cpu|user|...|cpu|user...
             let parts = line.components(separatedBy: "|")
 
-            // 解析逻辑保持不变，但现在的 parts 更加稳定
             guard parts.count >= 22 else { return nil }
 
             let cpuName = parts[0]
@@ -43,7 +32,7 @@ public extension Machine {
             t1.guest = Double(parts[9]) ?? 0
             t1.guestNice = Double(parts[10]) ?? 0
 
-            // 解析第二次采样 (t2) - 索引 12 到 21 (第 11 位是重复的 cpuName)
+            // 解析第二次采样 (t2) - 索引 12 到 21
             var t2 = CPUTimesStat()
             t2.cpu = cpuName
             t2.user = Double(parts[12]) ?? 0

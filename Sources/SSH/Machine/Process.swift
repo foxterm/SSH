@@ -8,23 +8,7 @@ import Foundation
 public extension Machine {
     func getSystemProcess() async -> [SystemProcess]? {
         let boundary = "PROC_BOUNDARY"
-        let gatherCmd = """
-        /bin/sh -c "if [ -d /proc ]; then
-            echo \\"base|\\$(grep '^btime' /proc/stat | awk '{print \\$2}')|\\$(getconf CLK_TCK 2>/dev/null || echo 100)\\";
-            get_total() { grep '^cpu ' /proc/stat | awk '{print \\$2+\\$3+\\$4+\\$5+\\$6+\\$7+\\$8+\\$9+\\$10+\\$11}'; };
-            t1=\\$(get_total); p1=\\$(cat /proc/[0-9]*/stat 2>/dev/null);
-            sleep 1;
-            t2=\\$(get_total); p2=\\$(cat /proc/[0-9]*/stat 2>/dev/null);
-            m=\\$(grep -H 'VmRSS:' /proc/[0-9]*/status 2>/dev/null);
-            echo \\"total|\\$t1|\\$t2\\"; echo '\\(boundary)';
-            echo \\"\\$p1\\"; echo '\\(boundary)';
-            echo \\"\\$p2\\"; echo '\\(boundary)';
-            echo \\"\\$m\\";
-        elif command -v ps >/dev/null; then
-            echo \\"ps_mode|macos\\"; echo '\\(boundary)';
-            ps -ax -o pid,pcpu,rss,state,comm,time,etime;
-        fi"
-        """
+        let gatherCmd = #"if [ -d /proc ]; then echo "base|$(grep '^btime' /proc/stat | awk '{print $2}')|$(getconf CLK_TCK 2>/dev/null || echo 100)"; get_total() { grep '^cpu ' /proc/stat | awk '{print $2+$3+$4+$5+$6+$7+$8+$9+$10+$11}'; }; t1=$(get_total); p1=$(cat /proc/[0-9]*/stat 2>/dev/null); sleep 1; t2=$(get_total); p2=$(cat /proc/[0-9]*/stat 2>/dev/null); m=$(grep -H 'VmRSS:' /proc/[0-9]*/status 2>/dev/null); echo "total|$t1|$t2"; echo "\#(boundary)"; echo "$p1"; echo "\#(boundary)"; echo "$p2"; echo "\#(boundary)"; echo "$m"; elif command -v ps >/dev/null; then echo "ps_mode|macos"; echo "\#(boundary)"; ps -ax -o pid,pcpu,rss,state,comm,time,etime; fi"#
 
         guard let output = await ssh.exec(gatherCmd)?.string else { return nil }
         let sections = output.components(separatedBy: boundary)
