@@ -11,6 +11,12 @@ public class Atomic {
     /// 内部存储的 64 位整型数值，由 libetos 的原子指令直接操作
     var _addr64: Int64 = 0
     public init() {}
+
+    deinit {
+        #if DEBUG
+            print("♻️", "Atomic 资源已释放")
+        #endif
+    }
 }
 
 public extension Atomic {
