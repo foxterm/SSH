@@ -61,6 +61,19 @@ public extension SFTP {
         return libssh2_sftp_last_error(rawSFTP) != LIBSSH2_FX_OK
     }
 
+    /// 获取远程 SFTP 的当前/初始绝对路径
+    func getwd() async -> String? {
+        guard rawSFTP != nil else { return nil }
+        let buf: Buffer<CChar> = .init(0x200)
+        let rc = await ssh.callSSH2 { [self] in
+            libssh2_sftp_symlink_ex(rawSFTP, ".", 1, buf.buffer, buf.count.uint32, LIBSSH2_SFTP_REALPATH.int32)
+        }
+        guard rc > 0 else {
+            return nil
+        }
+        return buf.data(rc.int).string
+    }
+
     /// 读取符号链接指向的目标路径
     /// - Parameter path: 链接文件路径
     /// - Returns: 目标路径字符串，失败返回 nil
