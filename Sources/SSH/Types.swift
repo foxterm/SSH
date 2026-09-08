@@ -4,6 +4,7 @@
 
 import CSSH2
 import Foundation
+import libetos
 
 ///// SSH 主机密钥类型
 ///// 映射 libssh2 中的主机密钥算法标识
@@ -179,6 +180,15 @@ public enum ProxyType: String, CaseIterable, Codable, Sendable {
             8080
         case .socks5:
             1080
+        }
+    }
+
+    var raw: Int32 {
+        switch self {
+        case .http:
+            ETOS_PROXY_HTTP
+        case .socks5:
+            ETOS_PROXY_SOCKS5
         }
     }
 }
