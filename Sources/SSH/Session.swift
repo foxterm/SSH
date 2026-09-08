@@ -292,15 +292,14 @@ public extension SSH {
             sessionBlocking = true
             libssh2_session_disconnect_ex(rawSession, SSH_DISCONNECT_BY_APPLICATION, "Bye-Bye", "")
             libssh2_session_free(rawSession)
-
+            // 通知外部代理处理连接中断逻辑
+            sessionDelegate?.disconnect()
             sessionDelegate = nil
             rawSession = nil
             #if DEBUG
                 print("♻️", "rawSession released")
             #endif
         }
-        // 通知外部代理处理连接中断逻辑
-        sessionDelegate?.disconnect()
     }
 }
 

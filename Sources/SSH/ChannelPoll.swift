@@ -6,6 +6,7 @@ import CSSH2
 import Darwin
 import Extension
 import Foundation
+import Sync
 
 class ChannelStream {
     let handle: OpaquePointer

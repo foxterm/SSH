@@ -14,6 +14,7 @@ let package = Package(
         .library(name: "Extension", targets: ["Extension"]),
         .library(name: "Socket", targets: ["Socket"]),
         .library(name: "Proxy", targets: ["Proxy"]),
+        .library(name: "Sync", targets: ["Sync"]),
     ],
     dependencies: [
         .package(
@@ -35,11 +36,15 @@ let package = Package(
                 .target(name: "Proxy"),
                 .target(name: "Socket"),
                 .target(name: "Extension"),
+                .target(name: "Sync"),
                 .product(name: "CSSH2", package: "libssh2"),
             ]
         ),
         .target(
-            name: "Extension",
+            name: "Extension"
+        ),
+        .target(
+            name: "Sync",
             dependencies: [
                 .target(name: "libetos"),
             ]

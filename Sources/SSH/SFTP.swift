@@ -5,6 +5,7 @@
 import CSSH2
 import Extension
 import Foundation
+import Sync
 
 /// SFTP 客户端类，封装了基于 libssh2 的文件传输协议操作
 public class SFTP {

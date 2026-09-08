@@ -6,6 +6,7 @@ import CSSH2
 import Extension
 import Foundation
 import Socket
+import Sync
 
 /// SSH 核心管理类，负责会话生命周期、底层 Socket 绑定及 libssh2 钩子函数分发
 public class SSH {
