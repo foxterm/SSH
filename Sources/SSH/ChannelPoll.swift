@@ -9,6 +9,7 @@ import Foundation
 import Sync
 
 class ChannelStream {
+    let wait: WaitGroup = .init()
     let handle: OpaquePointer
     let output: OutputStream
     let outerr: OutputStream?
@@ -110,16 +111,15 @@ extension ChannelPoll {
                 break
             }
 
-            // 2. 构建 LIBSSH2_POLLFD 数组，并做二次合法性校验
+            // 2. 构建 LIBSSH2_POLLFD 数组
             var validTasks: [ChannelStream] = []
             var pollFds: [LIBSSH2_POLLFD] = []
             pollFds.reserveCapacity(currentTasks.count)
 
+            // 锁内仅提取句柄和计算状态，避免在锁内执行 setupStreams 导致的耗时阻塞
             mutex.withLock {
                 for t in currentTasks {
                     guard let existingTask = _tasks[t.handle], !existingTask.isCancelled else { continue }
-
-                    setupStreams(for: existingTask)
 
                     var pollFd = LIBSSH2_POLLFD()
                     pollFd.type = LIBSSH2_POLLFD_CHANNEL.uint8
@@ -142,12 +142,14 @@ extension ChannelPoll {
                 break
             }
 
+            // 锁外统一初始化 Stream 状态
+            for task in validTasks {
+                setupStreams(for: task)
+            }
+
             // 3. 调用 libssh2_poll (超时 10ms)
-            let pollRc = pollFds.withUnsafeMutableBufferPointer { bp -> Int32 in
-                guard let baseAddress = bp.baseAddress, bp.count > 0 else { return 0 }
-                return mutex.withLock {
-                    libssh2_poll(baseAddress, bp.count.uint32, 10)
-                }
+            let pollRc = mutex.withLock {
+                libssh2_poll(&pollFds, pollFds.count.uint32, 10)
             }
 
             if pollRc < 0 {
@@ -159,6 +161,11 @@ extension ChannelPoll {
 
             // 4. 处理轮询事件响应
             for (idx, task) in validTasks.enumerated() {
+                task.wait.add()
+                defer {
+                    task.wait.done()
+                }
+
                 // 读取/写入前校验：防范 poll 阻塞 10ms 期间外部触发了注销
                 let isTaskAlive = mutex.withLock {
                     if let t = _tasks[task.handle], !t.isCancelled {
@@ -183,7 +190,7 @@ extension ChannelPoll {
                 var hasReadError = false
                 var hasWriteError = false
                 var isStdoutEof = false
-                var isStderrEof = false
+                var isStderrEof = (task.outerr == nil)
 
                 // 4.1 读取 stdout (stream_id: 0)
                 if canRead {
@@ -193,38 +200,24 @@ extension ChannelPoll {
                             hasReadError = true
                         }
                     } else if r == 0 {
-                        // 读出 0 字节时，校验远端是否已发 EOF
-                        let isEof = mutex.withLock {
-                            (_tasks[task.handle] != nil && !_tasks[task.handle]!.isCancelled) ? (libssh2_channel_eof(task.handle) != 0) : false
-                        }
-                        if isEof {
-                            isStdoutEof = true
-                        }
+                        isStdoutEof = checkChannelEof(handle: task.handle)
                     } else {
                         currentIncrement += r
                     }
                 }
 
                 // 4.2 读取 stderr (stream_id: 1)
-                if canRead && !hasReadError, let outerr = task.outerr {
+                if canRead && !hasReadError && !isStderrEof, let outerr = task.outerr {
                     let r = read(data: data, handle: task.handle, output: outerr, stream_id: 1)
                     if r < 0 {
                         if r != LIBSSH2_ERROR_EAGAIN {
                             hasReadError = true
                         }
                     } else if r == 0 {
-                        let isEof = mutex.withLock {
-                            (_tasks[task.handle] != nil && !_tasks[task.handle]!.isCancelled) ? (libssh2_channel_eof(task.handle) != 0) : false
-                        }
-                        if isEof {
-                            isStderrEof = true
-                        }
+                        isStderrEof = checkChannelEof(handle: task.handle)
                     } else {
                         currentIncrement += r
                     }
-                } else {
-                    // 如果没有配置 stderr，默认判定 stderr 已完成
-                    isStderrEof = true
                 }
 
                 // 4.3 处理写入
@@ -250,7 +243,6 @@ extension ChannelPoll {
                 }
 
                 // 4.5 退出与清理条件判断
-                // 必须在 stdout 和 stderr 都收到了 EOF（且不再有新字节），或者底层 Socket 彻底 Close / 发生错误时，才移除任务
                 let bothEofReached = isStdoutEof && isStderrEof
                 let isHasPollErr = (revents & (LIBSSH2_POLLFD_POLLERR | LIBSSH2_POLLFD_POLLHUP)) != 0
 
@@ -266,6 +258,13 @@ extension ChannelPoll {
                 }
                 remove(Array(tasksToRemove))
             }
+        }
+    }
+
+    private func checkChannelEof(handle: OpaquePointer) -> Bool {
+        mutex.withLock {
+            guard let t = _tasks[handle], !t.isCancelled else { return false }
+            return libssh2_channel_eof(handle) != 0
         }
     }
 
@@ -289,26 +288,28 @@ extension ChannelPoll {
     }
 
     func remove(_ tasksToRemove: [OpaquePointer]) {
+        var removedTasks: [ChannelStream] = []
+
         mutex.withLock {
             if tasksToRemove.isEmpty {
                 return
             }
 
-            var removedTasks: [ChannelStream] = []
             for handle in tasksToRemove {
                 if let task = _tasks.removeValue(forKey: handle) {
                     task.isCancelled = true
                     removedTasks.append(task)
                 }
             }
+        }
 
-            for t in removedTasks {
-                t.output.close()
-                t.outerr?.close()
-                t.write?.close()
-                t.continuation?.resume()
-                t.continuation = nil
-            }
+        for t in removedTasks {
+            t.wait.wait()
+            t.output.close()
+            t.outerr?.close()
+            t.write?.close()
+            t.continuation?.resume()
+            t.continuation = nil
         }
     }
 
