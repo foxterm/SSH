@@ -1,34 +1,35 @@
 #include "sync.h"
+#include <os/lock.h>
 #include <pthread.h>
 #include <stdatomic.h>
 #include <stdlib.h>
 
 // ---------------------------------------------------------
-// 互斥锁：macOS (POSIX) 实现
+// 互斥锁：基于 Apple os_unfair_lock（高性能、低内存开销）
 // ---------------------------------------------------------
 
 void etos_sync_mutex_init(etos_sync_mutex_t *m) {
-  pthread_mutex_init(&m->mutex, NULL);
+  m->lock = OS_UNFAIR_LOCK_INIT;
 }
 
 void etos_sync_mutex_lock(etos_sync_mutex_t *m) {
-  pthread_mutex_lock(&m->mutex);
+  os_unfair_lock_lock(&m->lock);
 }
 
 int etos_sync_mutex_trylock(etos_sync_mutex_t *m) {
-  return pthread_mutex_trylock(&m->mutex) == 0;
+  return os_unfair_lock_trylock(&m->lock);
 }
 
 void etos_sync_mutex_unlock(etos_sync_mutex_t *m) {
-  pthread_mutex_unlock(&m->mutex);
+  os_unfair_lock_unlock(&m->lock);
 }
 
 void etos_sync_mutex_destroy(etos_sync_mutex_t *m) {
-  pthread_mutex_destroy(&m->mutex);
+  // os_unfair_lock 为值类型结构，无需销毁
 }
 
 // ---------------------------------------------------------
-// 等候组：macOS (POSIX) 实现
+// 等候组：POSIX 条件变量实现
 // ---------------------------------------------------------
 
 void etos_sync_waitgroup_init(etos_sync_waitgroup_t *wg) {
@@ -45,7 +46,7 @@ void etos_sync_waitgroup_add(etos_sync_waitgroup_t *wg, int delta) {
     pthread_cond_broadcast(&wg->cv);
   } else if (wg->count < 0) {
     pthread_mutex_unlock(&wg->lock);
-    exit(EXIT_FAILURE);
+    abort(); // 触发 SIGABRT 便于日志定位崩溃现场
   }
 
   pthread_mutex_unlock(&wg->lock);
@@ -71,7 +72,7 @@ void etos_sync_waitgroup_destroy(etos_sync_waitgroup_t *wg) {
 }
 
 // ---------------------------------------------------------
-// 原子操作：C11 标准原子操作 (macOS / Clang 兼容)
+// 原子操作：基于 C11 stdatomic 的类型转换封装
 // ---------------------------------------------------------
 
 int64_t etos_sync_atomic_load(volatile int64_t *addr) {
@@ -99,5 +100,5 @@ int64_t etos_sync_atomic_cas(volatile int64_t *addr, int64_t expected,
   int64_t expected_local = expected;
   atomic_compare_exchange_strong((_Atomic int64_t *)addr, &expected_local,
                                  desired);
-  return expected_local;
+  return expected_local; // 返回交换前的旧值 (GCC/Clang 内置 CAS 语义)
 }
