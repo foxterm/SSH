@@ -40,13 +40,24 @@ public extension SSH {
         return true
     }
 
-    /// 获取当前连接的主机名
-    /// - Returns: 主机名字符串
-    var hostname: String? {
+    /// 获取当前连接的远程地址
+    var remoteAddr: String? {
         var ipBuffer = [CChar](repeating: 0, count: 64)
         var port: Int32 = 0
 
         guard etos_socket_get_peer_info(fd, &ipBuffer, ipBuffer.count, &port) == 0 else {
+            return nil
+        }
+        let host = ipBuffer.string
+        return Net.joinHostPort(host: host, port: port.int)
+    }
+
+    /// 获取当前连接的本地地址
+    var localAddr: String? {
+        var ipBuffer = [CChar](repeating: 0, count: 64)
+        var port: Int32 = 0
+
+        guard etos_socket_get_local_info(fd, &ipBuffer, ipBuffer.count, &port) == 0 else {
             return nil
         }
         let host = ipBuffer.string
