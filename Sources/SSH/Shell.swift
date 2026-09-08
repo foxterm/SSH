@@ -9,7 +9,7 @@ import Foundation
 /// Shell 交互类，负责管理 SSH 渠道的伪终端 (PTY) 会话与数据交互
 public class Shell {
     /// Shell 事件回调代理
-    public var shellDelegate: ShellDelegate?
+    public weak var shellDelegate: ShellDelegate?
 
     private var writeInputStream: InputStream?
     private var writeOutputStream: OutputStream?

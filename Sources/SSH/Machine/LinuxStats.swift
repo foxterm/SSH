@@ -50,6 +50,9 @@ public struct PlatformInfo: Identifiable, Equatable {
 /// CPU 时间统计的数据结构
 public struct CPUTimesStat: Identifiable, Equatable {
     public let id = UUID()
+//    public var id: String {
+//        cpu
+//    }
 
     /// CPU 标签
     public var cpu: String = ""
@@ -439,10 +442,13 @@ public struct NetConnStat: Identifiable, Equatable {
 
 /// 表示网络 IO 计数器统计信息的数据结构
 public struct NetIOCountersStat: Identifiable, Equatable {
-    public let id = UUID()
+    // public let id = UUID()
 
     /// 网络接口名称
     public var name: String = ""
+    public var id: String {
+        name
+    }
 
     /// 发送的字节数 (字节)
     public var bytesSent: Int64 = 0
@@ -516,7 +522,10 @@ public struct DiskUsageStat {
 
 /// 表示磁盘 IO 计数器统计信息的数据结构
 public struct DiskIOCountersStat: Identifiable, Equatable {
-    public let id = UUID()
+    /// public let id = UUID()
+    public var id: String {
+        name
+    }
 
     /// 读取次数
     public var readCount: Int64 = 0
@@ -570,6 +579,9 @@ public struct TemperatureStat: Identifiable, Equatable {
 
     /// 设备名称
     public var name: String = ""
+//    public var id: String {
+//        "\(name)-\(label)"
+//    }
 
     /// 标签
     public var label: String = ""
@@ -701,65 +713,16 @@ public enum ProcessStatus: String, CaseIterable {
     }
 }
 
-/// Docker 容器统计信息的数据结构
-public struct DockerStat: Identifiable, Equatable {
-    public var id: String {
-        containerID
-    }
-
-    /// 容器 ID
-    public let containerID: String
-
-    /// 容器名称
-    public let name: String
-
-    /// 镜像名称
-    public let image: String
-
-    /// 容器状态
-    public let status: String
-
-    /// 是否正在运行
-    public let running: Bool
-
-    /// 创建时间 (字符串格式)
-    public let createdAt: String
-
-    /// 端口信息
-    public let ports: String
-}
-
-/// Docker 统计信息的数据结构
-public struct DockerStats: Identifiable, Equatable {
-    public var id: String {
-        containerID
-    }
-
-    /// 容器 ID
-    public let containerID: String
-
-    /// 容器名称
-    public let name: String
-
-    /// CPU 使用率 (百分比)
-    public let CPUPerc: String
-
-    /// 内存使用率 (百分比)
-    public let memPerc: String
-
-    /// 网络 I/O 信息
-    public let netIO: String
-
-    /// 块设备 I/O 信息
-    public let blockIO: String
-}
-
 /// GPU 统计信息的数据结构
 public struct GPUStat: Identifiable, Equatable {
-    public let id = UUID()
+    // public let id = UUID()
 
     /// GPU 索引号
     public let index: Int
+
+    public var id: Int {
+        index
+    }
 
     /// GPU 名称
     public let name: String
@@ -840,4 +803,132 @@ public enum GPU: String, CaseIterable {
     case amd
     case rocm
     case intel
+}
+
+public struct DockerPSOutputDTO: Identifiable, Decodable, Sendable, Equatable {
+    public let id: String
+    public let image: String
+    public let names: String
+    public let status: String
+    public let createdAt: String
+    public let ports: String
+
+    public var isRunning: Bool {
+        status.lowercased().contains("up")
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: DynamicCodingKeys.self)
+        id = try container.decodeAnyString(forKeys: ["ID", "id"])
+        image = try container.decodeAnyString(forKeys: ["Image", "image"])
+        names = try container.decodeAnyString(forKeys: ["Names", "names"])
+        status = try container.decodeAnyString(forKeys: ["Status", "status"])
+        createdAt = (try? container.decodeAnyString(forKeys: ["CreatedAt", "createdAt"])) ?? ""
+        ports = (try? container.decodeAnyString(forKeys: ["Ports", "ports"])) ?? ""
+    }
+}
+
+public struct DockerStatsOutputDTO: Identifiable, Decodable, Sendable, Equatable {
+    public let id: String
+    public let name: String
+    public let cpuPerc: String
+    public let memPerc: String
+    public let netIO: String
+    public let blockIO: String
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: DynamicCodingKeys.self)
+        id = try container.decodeAnyString(forKeys: ["ID", "id", "Container"])
+        name = try container.decodeAnyString(forKeys: ["Name", "name"])
+        cpuPerc = try container.decodeAnyString(forKeys: ["CPUPerc", "cpuPerc", "cpu"])
+        memPerc = try container.decodeAnyString(forKeys: ["MemPerc", "memPerc", "mem"])
+        netIO = try container.decodeAnyString(forKeys: ["NetIO", "netIO", "net"])
+        blockIO = try container.decodeAnyString(forKeys: ["BlockIO", "blockIO", "block"])
+    }
+
+    /// 网络接收 (如: "1.2MB")
+    public var recv: String {
+        splitIOPair(netIO).input
+    }
+
+    /// 网络发送 (如: "500kB")
+    public var sent: String {
+        splitIOPair(netIO).output
+    }
+
+    /// 硬盘读取 (如: "10MB")
+    public var read: String {
+        splitIOPair(blockIO).input
+    }
+
+    /// 硬盘写入 (如: "0B")
+    public var write: String {
+        splitIOPair(blockIO).output
+    }
+
+    /// 将 "10.5MB / 2.3kB" 按照斜杠分割为两个字符串，并去除多余空格
+    private func splitIOPair(_ rawString: String) -> (input: String, output: String) {
+        let trimmed = rawString.trimmingCharacters(in: .whitespaces)
+        guard !trimmed.isEmpty, trimmed != "--" else {
+            return ("0B", "0B")
+        }
+
+        // 只按照第一个 "/" 拆分成两部分，防止右侧包含额外斜杠
+        let parts = trimmed.split(separator: "/", maxSplits: 1).map { $0.trimmingCharacters(in: .whitespaces) }
+
+        if parts.count == 2 {
+            return (parts[0], parts[1])
+        } else if parts.count == 1 {
+            return (parts[0], "0B")
+        }
+
+        return ("0B", "0B")
+    }
+}
+
+public struct DockerImageOutputDTO: Identifiable, Decodable, Sendable, Equatable {
+    public let id: String
+    public let repository: String
+    public let tag: String
+    public let size: String
+    public let createdAt: String
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: DynamicCodingKeys.self)
+        id = try container.decodeAnyString(forKeys: ["ID", "id"])
+        repository = try container.decodeAnyString(forKeys: ["Repository", "repository"])
+        tag = try container.decodeAnyString(forKeys: ["Tag", "tag"])
+        size = try container.decodeAnyString(forKeys: ["Size", "size"])
+        createdAt = (try? container.decodeAnyString(forKeys: ["CreatedAt", "createdAt"])) ?? ""
+    }
+}
+
+// MARK: - Dynamic Keys 辅助兼容层
+
+private struct DynamicCodingKeys: CodingKey {
+    var stringValue: String
+    init?(stringValue: String) {
+        self.stringValue = stringValue
+    }
+
+    var intValue: Int? {
+        nil
+    }
+
+    init?(intValue _: Int) {
+        nil
+    }
+}
+
+private extension KeyedDecodingContainer where K == DynamicCodingKeys {
+    func decodeAnyString(forKeys keys: [String]) throws -> String {
+        for key in keys {
+            if let codingKey = DynamicCodingKeys(stringValue: key),
+               let value = try? decode(String.self, forKey: codingKey)
+            {
+                return value
+            }
+        }
+        return ""
+    }
 }
