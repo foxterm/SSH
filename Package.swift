@@ -14,6 +14,7 @@ let package = Package(
         .library(name: "Extension", targets: ["Extension"]),
         .library(name: "Sync", targets: ["Sync"]),
         .library(name: "libetos", targets: ["libetos"]),
+        .library(name: "libtracked", targets: ["libtracked"]),
         .library(name: "Proxy", targets: ["libetos"]),
     ],
     dependencies: [
@@ -28,7 +29,7 @@ let package = Package(
             dependencies: [
                 .target(name: "Extension"),
                 .product(name: "OpenSSL", package: "OpenSSL"),
-                .target(name: "libetos"),
+                .target(name: "libtracked"),
             ]
         ),
         .target(
@@ -37,6 +38,8 @@ let package = Package(
                 .target(name: "Extension"),
                 .target(name: "Proxy"),
                 .target(name: "Sync"),
+                .target(name: "libetos"),
+                .target(name: "libtracked"),
                 .product(name: "CSSH2", package: "libssh2"),
             ]
         ),
