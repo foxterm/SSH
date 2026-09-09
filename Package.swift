@@ -26,6 +26,7 @@ let package = Package(
             dependencies: [
                 .target(name: "Extension"),
                 .product(name: "OpenSSL", package: "OpenSSL"),
+                .target(name: "libetos"),
             ]
         ),
         .target(
