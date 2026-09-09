@@ -31,7 +31,10 @@ public extension SSH {
     /// - Returns: 是否连接成功
     func connect(proxy: ProxyConfiguration) async -> Bool {
         fd = await io.call { [self] in
-            etos_socket_connect_proxy(proxy.type.raw, proxy.proxyHost, proxy.proxyPort.int32, proxy.timeoutMs.int32, host, port.int32, proxy.authentication?.user ?? nil, proxy.authentication?.password ?? nil)
+            etos_socket_connect_proxy(
+                proxy.type.raw, proxy.proxyHost, proxy.proxyPort.int32, proxy.timeoutMs.int32, host,
+                port.int32, proxy.authentication?.user ?? nil, proxy.authentication?.password ?? nil
+            )
         }
         guard isConnected else {
             error = socketLastStrError
@@ -74,7 +77,7 @@ public extension SSH {
     ///   - flags: 系统 send 标志位
     /// - Returns: 实际发送的字节数，负值代表错误
     func send(fd: Int32, buffer: UnsafeRawPointer, length: ssize_t, flags: CInt) -> Int {
-        let size = etos_socket_send(fd, buffer, length, flags)
+        let size = libssh2_send(fd, buffer, length, flags)
         if size < 0 {
             return size
         }
@@ -93,7 +96,7 @@ public extension SSH {
     func recv(fd: Int32, buffer: UnsafeMutableRawPointer, length: ssize_t, flags: CInt)
         -> Int
     {
-        let size = etos_socket_recv(fd, buffer, length, flags)
+        let size = libssh2_recv(fd, buffer, length, flags)
         if size < 0 {
             return size
         }
@@ -161,7 +164,9 @@ public extension SSH {
         }
 
         let revents = Int32(pollFd.revents)
-        if (revents & (LIBSSH2_POLLFD_POLLERR | LIBSSH2_POLLFD_POLLEXT | LIBSSH2_POLLFD_POLLHUP)) != 0 {
+        if (revents & (LIBSSH2_POLLFD_POLLERR | LIBSSH2_POLLFD_POLLEXT | LIBSSH2_POLLFD_POLLHUP))
+            != 0
+        {
             return false
         }
 
