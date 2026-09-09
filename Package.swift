@@ -13,6 +13,7 @@ let package = Package(
         .library(name: "Crypto", targets: ["Crypto"]),
         .library(name: "Extension", targets: ["Extension"]),
         .library(name: "Sync", targets: ["Sync"]),
+        .library(name: "libetos", targets: ["libetos"]),
     ],
     dependencies: [
         .package(
