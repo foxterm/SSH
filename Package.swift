@@ -43,7 +43,10 @@ let package = Package(
             name: "Extension"
         ),
         .target(
-            name: "Proxy"
+            name: "Proxy",
+            dependencies: [
+                .target(name: "libetos"),
+            ]
         ),
         .target(
             name: "Sync",
