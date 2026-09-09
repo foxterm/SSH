@@ -25,7 +25,7 @@ public class SSH {
     /// 客户端向服务器声明的协议标识串
     public let clientbanner: String
     /// 会话回调代理，用于同步连接状态、认证交互及流量监控
-    public weak var sessionDelegate: SessionDelegate?
+    public var sessionDelegate: SessionDelegate?
 
     /// 底层 TCP 套接字文件描述符
     public internal(set) var fd: Int32 = -1
