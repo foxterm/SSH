@@ -30,11 +30,6 @@ public class SSH {
     /// 底层 TCP 套接字文件描述符
     public internal(set) var fd: Int32 = -1
 
-    /// TCP 层参数配置
-    public var ttl: Int32 = 0
-    public var window: Int32 = 0
-    public var scale: Int32 = 0
-
     public var hostKeyAlgorithms: String = ""
 
     /// 数据传输缓冲区大小，默认 64K
