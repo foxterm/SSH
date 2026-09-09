@@ -2,7 +2,9 @@
 // Copyright (c) 2025-2026 foxterm.app
 // Created by foxterm@foxmail.com
 
+import Extension
 import Foundation
+import libetos
 
 /// 代理服务器与目标连接的配置结构体
 public struct ProxyConfiguration: Codable, Equatable {
@@ -49,5 +51,16 @@ public struct ProxyConfiguration: Codable, Equatable {
         self.proxyPort = proxyPort
         self.timeoutMs = timeoutMs
         authentication = auth
+    }
+}
+
+public extension ProxyConfiguration {
+    func connect(host: String, port: Int) async -> Int32 {
+        await io.call { [self] in
+            etos_socket_connect_proxy(
+                type.raw, proxyHost, proxyPort.int32, timeoutMs.int32, host,
+                port.int32, authentication?.user ?? nil, authentication?.password ?? nil
+            )
+        }
     }
 }
