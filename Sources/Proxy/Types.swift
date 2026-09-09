@@ -3,6 +3,7 @@
 // Created by foxterm@foxmail.com
 
 import Foundation
+import libetos
 
 /// 表示支持的网络代理协议类型枚举
 public enum ProxyType: String, CaseIterable, Codable, Sendable {
