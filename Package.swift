@@ -14,6 +14,7 @@ let package = Package(
         .library(name: "Extension", targets: ["Extension"]),
         .library(name: "Sync", targets: ["Sync"]),
         .library(name: "libetos", targets: ["libetos"]),
+        .library(name: "Proxy", targets: ["libetos"]),
     ],
     dependencies: [
         .package(
