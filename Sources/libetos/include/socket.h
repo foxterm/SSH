@@ -1,6 +1,5 @@
 #ifndef ETOS_SOCKET_H
 #define ETOS_SOCKET_H
-#include <libssh2.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <sys/types.h>
@@ -56,9 +55,9 @@ ssize_t etos_socket_recv_timeout(int fd, char *buf, size_t len, int flags,
 ssize_t etos_socket_send(int fd, const char *buf, size_t len, int flags);
 ssize_t etos_socket_recv(int fd, char *buf, size_t len, int flags);
 
-ssize_t libssh2_recv(libssh2_socket_t sock, void *buffer, size_t length,
+ssize_t libssh2_recv(int sock, void *buffer, size_t length,
                      int flags);
-ssize_t libssh2_send(libssh2_socket_t sock, const void *buffer, size_t length,
+ssize_t libssh2_send(int sock, const void *buffer, size_t length,
                      int flags);
 
 /** 关闭传输通道 (how: SHUT_RD=0, SHUT_WR=1, SHUT_RDWR=2) */

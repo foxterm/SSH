@@ -494,7 +494,7 @@ ssize_t etos_socket_recv(int fd, char *buf, size_t len, int flags) {
   return rc;
 }
 
-ssize_t libssh2_recv(libssh2_socket_t sock, void *buffer, size_t length,
+ssize_t libssh2_recv(int sock, void *buffer, size_t length,
                      int flags) {
   ssize_t rc;
 
@@ -529,7 +529,7 @@ ssize_t libssh2_recv(libssh2_socket_t sock, void *buffer, size_t length,
  *
  * Replacement for the standard send, return -errno on failure.
  */
-ssize_t libssh2_send(libssh2_socket_t sock, const void *buffer, size_t length,
+ssize_t libssh2_send(int sock, const void *buffer, size_t length,
                      int flags) {
   ssize_t rc;
 
