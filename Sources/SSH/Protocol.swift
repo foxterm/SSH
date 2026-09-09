@@ -6,7 +6,7 @@ import Foundation
 
 /// SSH 会话级别的回调协议
 /// 用于处理连接生命周期、身份验证交互以及流量统计
-public protocol SessionDelegate: AnyObject {
+public protocol SessionDelegate {
     /// 当 SSH 连接断开时调用
     func disconnect()
 
@@ -37,7 +37,7 @@ public extension SessionDelegate {
 
 /// Shell 交互层的回调协议
 /// 专门用于处理终端 (Terminal) 的输入输出与状态变更
-public protocol ShellDelegate: AnyObject {
+public protocol ShellDelegate {
     /// 接收到远程终端的标准输出 (stdout)
     /// 通常将此数据直接喂给终端组件 (如 Xterm.js 视图)
     func stdout(shell: Shell, data: Data)
