@@ -20,6 +20,7 @@ public extension SSH {
             error = socketLastStrError
             return false
         }
+        nodelay()
         keepalive()
         return true
     }
@@ -36,6 +37,7 @@ public extension SSH {
             error = socketLastStrError
             return false
         }
+        nodelay()
         keepalive()
         return true
     }
@@ -118,6 +120,11 @@ public extension SSH {
     /// 设置底层 Socket 的 keepalive
     internal func keepalive() {
         etos_socket_set_keepalive(fd, true, 5, 5, 10)
+    }
+
+    /// 禁用 Nagle 算法，降低延迟
+    internal func nodelay() {
+        etos_socket_set_nodelay(fd, true)
     }
 
     /// 等待套接字就绪（配合 libssh2 的非阻塞 IO）
