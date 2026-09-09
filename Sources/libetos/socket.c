@@ -454,20 +454,73 @@ ssize_t etos_socket_recv_timeout(int fd, char *buf, size_t len, int flags,
   return etos_socket_recv(fd, buf, len, flags);
 }
 
-/* 适配 libssh2: 必须返回 -errno */
 ssize_t etos_socket_send(int fd, const char *buf, size_t len, int flags) {
   ssize_t rc = send(fd, buf, len, flags);
+  return rc;
+}
+
+ssize_t etos_socket_recv(int fd, char *buf, size_t len, int flags) {
+  ssize_t rc = recv(fd, buf, len, flags);
+  return rc;
+}
+
+ssize_t libssh2_recv(libssh2_socket_t sock, void *buffer, size_t length,
+                     int flags) {
+  ssize_t rc;
+
+  rc = recv(sock, buffer, length, flags);
   if (rc < 0) {
-    return -errno;
+    int err;
+#ifdef _WIN32
+    err = _libssh2_wsa2errno();
+#else
+    err = errno;
+#endif
+    /* Profiling tools that use SIGPROF can cause EINTR responses.
+       recv() does not modify its arguments when it returns EINTR,
+       but there may be data waiting, so the caller should try again */
+    if (err == EINTR)
+      return -EAGAIN;
+    /* Sometimes the first recv() function call sets errno to ENOENT on
+       Solaris and HP-UX */
+    if (err == ENOENT)
+      return -EAGAIN;
+#ifdef EWOULDBLOCK /* For VMS and other special unixes */
+    else if (err == EWOULDBLOCK)
+      return -EAGAIN;
+#endif
+    else
+      return -err;
   }
   return rc;
 }
 
-/* 适配 libssh2: 必须返回 -errno */
-ssize_t etos_socket_recv(int fd, char *buf, size_t len, int flags) {
-  ssize_t rc = recv(fd, buf, len, flags);
+/* _libssh2_send
+ *
+ * Replacement for the standard send, return -errno on failure.
+ */
+ssize_t libssh2_send(libssh2_socket_t sock, const void *buffer, size_t length,
+                     int flags) {
+  ssize_t rc;
+
+  rc = send(sock, buffer, length, flags);
   if (rc < 0) {
-    return -errno;
+    int err;
+#ifdef _WIN32
+    err = _libssh2_wsa2errno();
+#else
+    err = errno;
+#endif
+    /* Profiling tools that use SIGPROF can cause EINTR responses.
+       send() is defined as not yet sending any data when it returns EINTR,
+       so the caller should try again */
+    if (err == EINTR)
+      return -EAGAIN;
+#ifdef EWOULDBLOCK /* For VMS and other special unixes */
+    if (err == EWOULDBLOCK)
+      return -EAGAIN;
+#endif
+    return -err;
   }
   return rc;
 }
