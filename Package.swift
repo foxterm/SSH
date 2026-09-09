@@ -34,12 +34,16 @@ let package = Package(
             name: "SSH",
             dependencies: [
                 .target(name: "Extension"),
+                .target(name: "Proxy"),
                 .target(name: "Sync"),
                 .product(name: "CSSH2", package: "libssh2"),
             ]
         ),
         .target(
             name: "Extension"
+        ),
+        .target(
+            name: "Proxy"
         ),
         .target(
             name: "Sync",
