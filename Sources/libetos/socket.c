@@ -8,6 +8,7 @@
 #include <openssl/bio.h>
 #include <openssl/buffer.h>
 #include <openssl/evp.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -352,6 +353,33 @@ static bool handshake_socks5_proxy(int fd, const char *target_host,
    外部接口实现
    ------------------------------------------------------------ */
 
+int etos_socket_set_keepalive(int fd, bool enable, int idle_sec,
+                              int interval_sec, int count) {
+  int optval = enable ? 1 : 0;
+  if (setsockopt(fd, SOL_SOCKET, SO_KEEPALIVE, &optval, sizeof(optval)) < 0) {
+    return -1;
+  }
+
+  if (enable) {
+    if (idle_sec > 0) {
+      setsockopt(fd, IPPROTO_TCP, TCP_KEEPALIVE, &idle_sec, sizeof(idle_sec));
+    }
+    if (interval_sec > 0) {
+      setsockopt(fd, IPPROTO_TCP, TCP_KEEPINTVL, &interval_sec,
+                 sizeof(interval_sec));
+    }
+    if (count > 0) {
+      setsockopt(fd, IPPROTO_TCP, TCP_KEEPCNT, &count, sizeof(count));
+    }
+  }
+  return 0;
+}
+
+int etos_socket_set_nodelay(int fd, bool enable) {
+  int optval = enable ? 1 : 0;
+  return setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &optval, sizeof(optval));
+}
+
 int etos_socket_connect(const char *host, int port, int timeout_ms) {
   if (!host || port <= 0 || port > 65535)
     return ETOS_INVALID_SOCKET;
@@ -386,6 +414,8 @@ int etos_socket_connect(const char *host, int port, int timeout_ms) {
   }
 
   freeaddrinfo(res);
+  etos_socket_set_nodelay(fd, true);
+  etos_socket_set_keepalive(fd, true, 5, 5, 10);
   return fd;
 }
 
@@ -562,33 +592,6 @@ bool etos_socket_is_connect(int fd) {
     return false;
   }
   return true;
-}
-
-int etos_socket_set_keepalive(int fd, bool enable, int idle_sec,
-                              int interval_sec, int count) {
-  int optval = enable ? 1 : 0;
-  if (setsockopt(fd, SOL_SOCKET, SO_KEEPALIVE, &optval, sizeof(optval)) < 0) {
-    return -1;
-  }
-
-  if (enable) {
-    if (idle_sec > 0) {
-      setsockopt(fd, IPPROTO_TCP, TCP_KEEPALIVE, &idle_sec, sizeof(idle_sec));
-    }
-    if (interval_sec > 0) {
-      setsockopt(fd, IPPROTO_TCP, TCP_KEEPINTVL, &interval_sec,
-                 sizeof(interval_sec));
-    }
-    if (count > 0) {
-      setsockopt(fd, IPPROTO_TCP, TCP_KEEPCNT, &count, sizeof(count));
-    }
-  }
-  return 0;
-}
-
-int etos_socket_set_nodelay(int fd, bool enable) {
-  int optval = enable ? 1 : 0;
-  return setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &optval, sizeof(optval));
 }
 
 int etos_socket_last_error(void) { return errno; }
