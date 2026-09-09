@@ -7,6 +7,7 @@ import Darwin
 import Extension
 import Foundation
 import libetos
+import Proxy
 
 public extension SSH {
     /// 发起标准的 TCP 直接连接
