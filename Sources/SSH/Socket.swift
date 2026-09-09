@@ -29,12 +29,7 @@ public extension SSH {
     /// - Parameter proxy: 代理配置信息对象
     /// - Returns: 是否连接成功
     func connect(proxy: ProxyConfiguration) async -> Bool {
-        fd = await io.call { [self] in
-            etos_socket_connect_proxy(
-                proxy.type.raw, proxy.proxyHost, proxy.proxyPort.int32, proxy.timeoutMs.int32, host,
-                port.int32, proxy.authentication?.user ?? nil, proxy.authentication?.password ?? nil
-            )
-        }
+        fd = await proxy.connect(host: host, port: port)
         guard isConnected else {
             error = socketLastStrError
             return false
