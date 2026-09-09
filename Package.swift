@@ -57,7 +57,10 @@ let package = Package(
             ]
         ),
         .target(
-            name: "libetos",
+            name: "libetos"
+        ),
+        .target(
+            name: "libtracked",
             dependencies: [
                 .product(name: "OpenSSL", package: "OpenSSL"),
                 .product(name: "CSSH2", package: "libssh2"),

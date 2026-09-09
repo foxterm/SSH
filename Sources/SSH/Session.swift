@@ -5,7 +5,7 @@
 import CSSH2
 import Extension
 import Foundation
-import libetos
+import libtracked
 
 public extension SSH {
     /// 执行 SSH 握手协议
