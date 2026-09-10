@@ -63,6 +63,10 @@ public extension FixedWidthInteger {
         UInt64(self)
     }
 
+    var double: Double {
+        Double(self)
+    }
+
     var formatNetworkSpeed: String {
         let units = ["bps", "Kbps", "Mbps", "Gbps", "Tbps"]
         var speed = Double(self)
