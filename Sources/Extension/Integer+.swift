@@ -62,9 +62,7 @@ public extension FixedWidthInteger {
     var uint64: UInt64 {
         UInt64(self)
     }
-}
 
-public extension Int64 {
     var formatNetworkSpeed: String {
         let units = ["bps", "Kbps", "Mbps", "Gbps", "Tbps"]
         var speed = Double(self)
@@ -78,36 +76,18 @@ public extension Int64 {
     }
 
     var byteFormatterBinary: String {
-        ByteCountFormatter.string(fromByteCount: self, countStyle: .binary)
+        ByteCountFormatter.string(fromByteCount: Int64(self), countStyle: .binary)
     }
 
     var byteFormatterFile: String {
-        ByteCountFormatter.string(fromByteCount: self, countStyle: .file)
+        ByteCountFormatter.string(fromByteCount: Int64(self), countStyle: .file)
     }
 
     var byteFormatterMemory: String {
-        ByteCountFormatter.string(fromByteCount: self, countStyle: .memory)
+        ByteCountFormatter.string(fromByteCount: Int64(self), countStyle: .memory)
     }
 
     var byteFormatterDecimal: String {
-        ByteCountFormatter.string(fromByteCount: self, countStyle: .decimal)
-    }
-}
-
-public extension UInt64 {
-    var byteFormatterBinary: String {
-        int64.byteFormatterBinary
-    }
-
-    var byteFormatterFile: String {
-        int64.byteFormatterFile
-    }
-
-    var byteFormatterMemory: String {
-        int64.byteFormatterMemory
-    }
-
-    var byteFormatterDecimal: String {
-        int64.byteFormatterDecimal
+        ByteCountFormatter.string(fromByteCount: Int64(self), countStyle: .decimal)
     }
 }
