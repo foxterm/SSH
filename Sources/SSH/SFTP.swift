@@ -180,9 +180,8 @@ public extension SFTP {
     ///   - permissions: 文件权限
     /// - Returns: 是否成功
     func mkfile(path: String, permissions: FilePermissions = .default) async -> Bool {
-        await closeHandle()
         guard rawSFTP != nil else { return false }
-        handle = await ssh.callSSH2 { [self] in
+        let handle = await ssh.callSSH2 { [self] in
             libssh2_sftp_open_ex(
                 rawSFTP,
                 path,
@@ -193,7 +192,9 @@ public extension SFTP {
             )
         }
         guard handle != nil else { return false }
-        await closeHandle()
+        await ssh.callSSH2 { [self] in
+            libssh2_sftp_close_handle(handle)
+        }
         return true
     }
 
@@ -303,11 +304,10 @@ public extension SFTP {
     /// - Parameter path: 目录路径，默认 "/"
     /// - Returns: 文件属性列表
     func openDir(path: String = "/") async -> [FileAttributes] {
-        await closeHandle()
         guard rawSFTP != nil else {
             return []
         }
-        handle = await ssh.callSSH2 { [self] in
+        let handle = await ssh.callSSH2 { [self] in
             libssh2_sftp_open_ex(
                 rawSFTP, path, path.count.uint32, UInt(LIBSSH2_FXF_READ), 0, LIBSSH2_SFTP_OPENDIR
             )
@@ -336,7 +336,10 @@ public extension SFTP {
                 data.append(FileAttributes(name: name, longname: longname, attributes: attrs))
             }
         } while rc > 0
-        await closeHandle()
+        await ssh.callSSH2 {
+            [self] in
+            libssh2_sftp_close_handle(handle)
+        }
         return data
     }
 
