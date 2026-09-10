@@ -104,7 +104,7 @@ public extension Shell {
     /// 向 Shell 写入二进制数据
     func write(data: Data) {
         guard let outputStream = writeOutputStream, outputStream.hasSpaceAvailable else { return }
-        _ = data.withUnsafeBytes { (buffer: UnsafeRawBufferPointer) in
+        data.withUnsafeBytes { (buffer: UnsafeRawBufferPointer) in
             if let baseAddress = buffer.baseAddress?.assumingMemoryBound(to: UInt8.self) {
                 outputStream.write(baseAddress, maxLength: data.count)
             }
