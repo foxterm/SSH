@@ -98,10 +98,12 @@ public extension SSH {
             "ssh-dss",
         ]
 
-        let priorityMap = Dictionary(uniqueKeysWithValues: preferredOrder.enumerated().map { ($0.element, $0.offset) })
+        let priorityMap = Dictionary(
+            uniqueKeysWithValues: preferredOrder.enumerated().map { ($0.element, $0.offset) }
+        )
         let insecureSet: Set = ["ssh-rsa-cert-v01@openssh.com", "ssh-rsa", "ssh-dss"]
 
-        let session = inputSession ?? libssh2_session_init_ex(nil, nil, nil, nil)
+        let session = inputSession ?? ssh2_session_init_tracked(nil)
         defer {
             if inputSession == nil, let session {
                 libssh2_session_free(session)
@@ -111,7 +113,9 @@ public extension SSH {
 
         var algsPtr: UnsafeMutablePointer<UnsafePointer<CChar>?>?
         let count = libssh2_session_supported_algs(session, LIBSSH2_METHOD_HOSTKEY, &algsPtr)
-        guard count > 0, let algs = algsPtr else { return HostKeySupport(supported: [], insecure: []) }
+        guard count > 0, let algs = algsPtr else {
+            return HostKeySupport(supported: [], insecure: [])
+        }
         defer { libssh2_free(session, algsPtr) }
 
         let sortedList = (0 ..< Int(count))
@@ -205,29 +209,29 @@ public extension SSH {
         }
     }
 
-//
-//    /// 配置 SSH Keepalive 参数
-//    /// - Parameter keepaliveInterval: 心跳间隔时间（秒）
-//    internal func keepaliveConfig(_ keepaliveInterval: Int = 5) {
-//        guard rawSession != nil else { return }
-//        libssh2_keepalive_config(rawSession, 1, keepaliveInterval.uint32)
-//    }
-//
-//    ///    /// 发送心跳包，维持连接不断开
-//    internal func sendKeepalive() {
-//        guard rawSession != nil, isAuthenticated else { return }
-//        let seconds: Buffer<Int32> = .init()
-//        let rc = libssh2_keepalive_send(rawSession, seconds.buffer)
-//        guard rc == LIBSSH2_ERROR_NONE else {
-//            #if DEBUG
-//                print("心跳失败: \(rc)")
-//            #endif
-//            return
-//        }
-//        #if DEBUG
-//            print("下一次心跳 \(seconds.pointee) 秒")
-//        #endif
-//    }
+    //
+    //    /// 配置 SSH Keepalive 参数
+    //    /// - Parameter keepaliveInterval: 心跳间隔时间（秒）
+    //    internal func keepaliveConfig(_ keepaliveInterval: Int = 5) {
+    //        guard rawSession != nil else { return }
+    //        libssh2_keepalive_config(rawSession, 1, keepaliveInterval.uint32)
+    //    }
+    //
+    //    ///    /// 发送心跳包，维持连接不断开
+    //    internal func sendKeepalive() {
+    //        guard rawSession != nil, isAuthenticated else { return }
+    //        let seconds: Buffer<Int32> = .init()
+    //        let rc = libssh2_keepalive_send(rawSession, seconds.buffer)
+    //        guard rc == LIBSSH2_ERROR_NONE else {
+    //            #if DEBUG
+    //                print("心跳失败: \(rc)")
+    //            #endif
+    //            return
+    //        }
+    //        #if DEBUG
+    //            print("下一次心跳 \(seconds.pointee) 秒")
+    //        #endif
+    //    }
 
     /// 读取远程文件的完整内容
     func readFile(_ filename: String) async -> String? {
