@@ -17,11 +17,13 @@ public final class Bytes {
 
     // 十进制单位（SI 国际单位制）
     public static let KB: Int64 = 1000
-    public static let MB: Int64 = KB * 1000
-    public static let GB: Int64 = MB * 1000
-    public static let TB: Int64 = GB * 1000
-    public static let PB: Int64 = TB * 1000
-    public static let EB: Int64 = PB * 1000
+    public static let MB: Int64 = 1_000_000
+    public static let GB: Int64 = 1_000_000_000
+    public static let TB: Int64 = 1_000_000_000_000
+    public static let PB: Int64 = 1_000_000_000_000_000
+    public static let EB: Int64 = 1_000_000_000_000_000_000
+
+    public static var defaultBinary = true
 
     // 正则表达式匹配模式
     private static let patternBinary = try? NSRegularExpression(pattern: "^(-?\\d+(?:\\.\\d+)?)\\s?([KMGTPE]iB?)$", options: .caseInsensitive)
@@ -192,5 +194,9 @@ public final class Bytes {
     /// 便捷静态方法：解析容量字符串。
     public static func parse(_ value: String) throws -> Int64 {
         try shared.parse(value)
+    }
+
+    public static func formatBytes(_ value: Int64) -> String {
+        defaultBinary ? formatBinary(value) : formatDecimal(value)
     }
 }
