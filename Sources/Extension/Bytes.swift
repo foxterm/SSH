@@ -23,11 +23,17 @@ public final class Bytes {
     public static let PB: Int64 = 1_000_000_000_000_000
     public static let EB: Int64 = 1_000_000_000_000_000_000
 
+    // 速率单位基础（基于十进制 SI 标准）
+    public static let Kbps: Int64 = 1000
+    public static let Mbps: Int64 = 1_000_000
+    public static let Gbps: Int64 = 1_000_000_000
+    public static let Tbps: Int64 = 1_000_000_000_000
     public static var defaultBinary = true
 
     // 正则表达式匹配模式
     private static let patternBinary = try? NSRegularExpression(pattern: "^(-?\\d+(?:\\.\\d+)?)\\s?([KMGTPE]iB?)$", options: .caseInsensitive)
     private static let patternDecimal = try? NSRegularExpression(pattern: "^(-?\\d+(?:\\.\\d+)?)\\s?([KMGTPE]B?|B?)$", options: .caseInsensitive)
+    private static let patternRate = try? NSRegularExpression(pattern: "^(-?\\d+(?:\\.\\d+)?)\\s?([KMGT]?bps)$", options: .caseInsensitive)
 
     public init() {}
 
@@ -107,6 +113,34 @@ public final class Bytes {
         return String(format: "%.2f%@", val, multiple)
     }
 
+    /// 将每秒比特数 (bps) 格式化为易读的速率字符串 (bps, Kbps, Mbps, Gbps, Tbps)。
+    /// 例如：`1500000` bps 将返回 `"1.50Mbps"`。
+    public func formatRate(_ bpsValue: Int64) -> String {
+        var multiple = "bps"
+        var val = Double(bpsValue)
+
+        switch bpsValue {
+        case Bytes.Tbps...:
+            val /= Double(Bytes.Tbps)
+            multiple = "Tbps"
+        case Bytes.Gbps...:
+            val /= Double(Bytes.Gbps)
+            multiple = "Gbps"
+        case Bytes.Mbps...:
+            val /= Double(Bytes.Mbps)
+            multiple = "Mbps"
+        case Bytes.Kbps...:
+            val /= Double(Bytes.Kbps)
+            multiple = "Kbps"
+        case 0:
+            return "0 bps"
+        default:
+            return "\(bpsValue) bps"
+        }
+
+        return String(format: "%.2f%@", val, multiple)
+    }
+
     // MARK: - 解析方法
 
     /// 解析易读的容量字符串并转换为字节整数。
@@ -174,6 +208,31 @@ public final class Bytes {
         }
     }
 
+    /// 解析速率字符串（bps, Kbps, Mbps, Gbps, Tbps）并转换为基本 bps 整数。
+    /// 例如：`"10Mbps"` 将返回 `10000000`。
+    public func parseRate(_ value: String) throws -> Int64 {
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let regex = Bytes.patternRate,
+              let match = regex.firstMatch(in: trimmed, range: NSRange(location: 0, length: trimmed.utf16.count)),
+              match.numberOfRanges >= 3,
+              let numRange = Range(match.range(at: 1), in: trimmed),
+              let unitRange = Range(match.range(at: 2), in: trimmed),
+              let rateValue = Double(trimmed[numRange])
+        else {
+            throw NSError(domain: "BytesError", code: 1, userInfo: [NSLocalizedDescriptionKey: "解析速率数值失败: value=\(value)"])
+        }
+
+        let unit = trimmed[unitRange].lowercased()
+
+        switch unit {
+        case "kbps": return Int64(rateValue * Double(Bytes.Kbps))
+        case "mbps": return Int64(rateValue * Double(Bytes.Mbps))
+        case "gbps": return Int64(rateValue * Double(Bytes.Gbps))
+        case "tbps": return Int64(rateValue * Double(Bytes.Tbps))
+        default: return Int64(rateValue)
+        }
+    }
+
     // MARK: - 静态全局便捷封装
 
     /// 便捷静态方法：使用默认规则（二进制）格式化字节数。
@@ -194,6 +253,16 @@ public final class Bytes {
     /// 便捷静态方法：解析容量字符串。
     public static func parse(_ value: String) throws -> Int64 {
         try shared.parse(value)
+    }
+
+    /// 便捷静态方法：格式化网络速率 (bps)。
+    public static func formatRate(_ bpsValue: Int64) -> String {
+        shared.formatRate(bpsValue)
+    }
+
+    /// 便捷静态方法：解析速率字符串。
+    public static func parseRate(_ value: String) throws -> Int64 {
+        try shared.parseRate(value)
     }
 
     public static func formatBytes(_ value: Int64) -> String {
