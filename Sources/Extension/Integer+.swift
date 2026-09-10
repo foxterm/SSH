@@ -76,10 +76,14 @@ public extension FixedWidthInteger {
     }
 
     var formatBinary: String {
-        Bytes.formatBinary(Int64(self))
+        Bytes.formatBinary(int64)
     }
 
     var byteFormatterDecimal: String {
-        Bytes.formatDecimal(Int64(self))
+        Bytes.formatDecimal(int64)
+    }
+
+    var formatBytes: String {
+        Bytes.formatBytes(int64)
     }
 }
