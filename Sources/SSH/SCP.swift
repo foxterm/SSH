@@ -107,12 +107,11 @@ public extension SCP {
         ) { [weak self] (currentLoopBytes: Int64, total: Int64) -> Bool in
             totalSent += currentLoopBytes
 
-            let continueTransfer = progress(totalSent, total)
-            if !continueTransfer {
-                // 如果用户取消了，顺手断开该通道
-                self?.channel.closeChannel()
-            }
-            return continueTransfer
+            return progress(totalSent, total)
+//            if !continueTransfer {
+//                // 如果用户取消了，顺手断开该通道
+//                self?.channel.closeChannel()
+//            }
         }
 
         _ = channel.sendEof()
@@ -182,11 +181,10 @@ public extension SCP {
         ) { [weak self] (currentLoopBytes: Int64, _: Int64) -> Bool in
             totalReceived += currentLoopBytes
 
-            let continueTransfer = progress(totalReceived, size)
-            if !continueTransfer {
-                self?.channel.closeChannel()
-            }
-            return continueTransfer
+            return progress(totalReceived, size)
+//            if !continueTransfer {
+//                self?.channel.closeChannel()
+//            }
         }
 
         channel.closeChannel()
