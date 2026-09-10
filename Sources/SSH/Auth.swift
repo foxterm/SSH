@@ -67,6 +67,7 @@ public extension SSH {
             return false
         }
 
+        // 执行密码认证
         let code = await callSSH2 {
             libssh2_userauth_password_ex(
                 self.rawSession, user, user.count.uint32, password, password.count.uint32, nil
@@ -76,7 +77,7 @@ public extension SSH {
         return code == LIBSSH2_ERROR_NONE && isAuthenticated
     }
 
-    /// 使用公钥/私钥对进行身份验证
+    /// 使用公钥/私钥对进行身份验证（基于内存字符串）
     /// 直接从内存加载密钥字符串，无需写入本地文件，安全性更高
     /// - Parameters:
     ///   - user: 用户名
@@ -97,6 +98,7 @@ public extension SSH {
             return false
         }
 
+        // 调用基于内存的密钥认证接口
         let code = await callSSH2 {
             libssh2_userauth_publickey_frommemory(
                 self.rawSession, user, user.count, publickey, publickey.count, privateKey,
@@ -106,7 +108,36 @@ public extension SSH {
         return code == LIBSSH2_ERROR_NONE && isAuthenticated
     }
 
-    /// 执行“无密码”认证或“交互式”认证 (Keyboard-Interactive)
+    /// 使用公钥/私钥文件路径进行身份验证
+    /// - Parameters:
+    ///   - user: 用户名
+    ///   - privateKeyFile: 私钥文件路径
+    ///   - passphrase: 私钥解密密码（如有）
+    ///   - publickeyFile: 公钥文件路径（可选）
+    /// - Returns: 认证是否成功
+    func authenticate(
+        user: String, privateKeyFile: String, passphrase: String = "", publickeyFile: String = ""
+    ) async -> Bool {
+        guard await getUserauthList(user: user).contains(.publickey) else {
+            return false
+        }
+        if isAuthenticated {
+            return true
+        }
+        guard rawSession != nil else {
+            return false
+        }
+
+        // 调用基于本地文件路径的密钥认证接口
+        let code = await callSSH2 {
+            libssh2_userauth_publickey_fromfile_ex(
+                self.rawSession, user, user.count.uint32, publickeyFile, privateKeyFile, passphrase
+            )
+        }
+        return code == LIBSSH2_ERROR_NONE && isAuthenticated
+    }
+
+    /// 执行“无密码”认证或“键盘交互式”认证 (Keyboard-Interactive / 动态验证码等)
     /// - Parameters:
     ///   - user: 用户名
     ///   - none: 是否尝试 'none' 认证（用于探测或某些免密环境）
@@ -143,7 +174,7 @@ public extension SSH {
                         continue
                     }
 
-                    // 通过代理向用户请求输入（如验证码、二次确认等）
+                    // 通过代理向用户请求输入（如双因子验证码、二次确认等）
                     let password =
                         ssh.sessionDelegate?.keyboardInteractive(ssh: ssh, prompt: prompt) ?? ""
 
@@ -158,9 +189,9 @@ public extension SSH {
         return code == LIBSSH2_ERROR_NONE && isAuthenticated
     }
 
-    /// 开启 SSH 心跳包计时器
+    /// 开启 SSH 心跳包计时器（已注释代码）
     /// 每隔 5 秒发送一次 Keepalive 信号，防止连接因闲置被网关断开
-    /// 不需要心跳，使用了 Socket 层的 KeepAlive 机制防止链路被运营商中间设备切断
+    /// 提示：目前倾向使用 Socket 层的 KeepAlive 机制，防止链路被运营商中间设备切断
 //    func keepalive() {
 //        keepaliveConfig()
 //        timer?.cancel()
