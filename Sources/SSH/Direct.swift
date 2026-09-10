@@ -53,7 +53,7 @@ extension Direct {
     ///   - write: 本地输出流（用于接收远程通道数据并写入本地）
     /// - Returns: `true` 表示转发通道成功建立且传输正常完成；`false` 表示 Session 无效或创建通道失败
     public func tcpip(
-        host: String, port: Int, shost: String, sport: Int, read: InputStream, write: OutputStream
+        host: String, port: Int, shost: String = "127.0.0.1", sport: Int = 22, read: InputStream, write: OutputStream
     ) async -> Bool {
         guard rawSession != nil else {
             return false
@@ -86,7 +86,7 @@ extension Direct {
     ///   - write: 本地输出流（用于接收远程 Socket 数据并写入本地）
     /// - Returns: `true` 表示 Socket 通道建立成功；`false` 表示 Session 无效或创建通道失败
     public func streamLocal(
-        socketPath: String, shost: String, sport: Int, read: InputStream, write: OutputStream
+        socketPath: String, shost: String = "127.0.0.1", sport: Int = 22, read: InputStream, write: OutputStream
     ) async -> Bool {
         guard rawSession != nil else {
             return false
