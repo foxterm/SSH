@@ -68,15 +68,7 @@ public extension FixedWidthInteger {
     }
 
     var formatNetworkSpeed: String {
-        let units = ["bps", "Kbps", "Mbps", "Gbps", "Tbps"]
-        var speed = Double(self)
-        var unitIndex = 0
-
-        while speed >= 1000, unitIndex < units.count - 1 {
-            speed /= 1000
-            unitIndex += 1
-        }
-        return String(format: "%.1f %@", speed, units[unitIndex])
+        Bytes.formatRate(int64)
     }
 
     var formatBinary: String {
