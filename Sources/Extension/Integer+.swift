@@ -75,19 +75,11 @@ public extension FixedWidthInteger {
         return String(format: "%.1f %@", speed, units[unitIndex])
     }
 
-    var byteFormatterBinary: String {
-        ByteCountFormatter.string(fromByteCount: Int64(self), countStyle: .binary)
-    }
-
-    var byteFormatterFile: String {
-        ByteCountFormatter.string(fromByteCount: Int64(self), countStyle: .file)
-    }
-
-    var byteFormatterMemory: String {
-        ByteCountFormatter.string(fromByteCount: Int64(self), countStyle: .memory)
+    var formatBinary: String {
+        Bytes.formatBinary(Int64(self))
     }
 
     var byteFormatterDecimal: String {
-        ByteCountFormatter.string(fromByteCount: Int64(self), countStyle: .decimal)
+        Bytes.formatDecimal(Int64(self))
     }
 }
