@@ -6,7 +6,6 @@ import CSSH2
 import Extension
 import Foundation
 import libetos
-import libtracked
 
 public extension SSH {
     /// 执行 SSH 握手协议
@@ -14,7 +13,7 @@ public extension SSH {
     /// - Returns: 握手成功返回 true，否则释放资源并返回 false
     func handshake() async -> Bool {
         // 初始化 libssh2 会话，将 self 指针传入以便在回调中获取上下文
-        rawSession = ssh2_session_init_tracked(Unmanaged.passUnretained(self).toOpaque())
+        rawSession = libssh2_session_init_ex(nil, nil, nil, Unmanaged.passUnretained(self).toOpaque())
         guard let rawSession else {
             return false
         }
@@ -101,7 +100,7 @@ public extension SSH {
         let priorityMap = Dictionary(uniqueKeysWithValues: preferredOrder.enumerated().map { ($0.element, $0.offset) })
         let insecureSet: Set = ["ssh-rsa-cert-v01@openssh.com", "ssh-rsa", "ssh-dss"]
 
-        let session = inputSession ?? ssh2_session_init_tracked(nil)
+        let session = inputSession ?? libssh2_session_init_ex(nil, nil, nil, nil)
         defer {
             if inputSession == nil, let session {
                 libssh2_session_free(session)
