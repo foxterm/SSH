@@ -3,7 +3,6 @@
 // Created by foxterm@foxmail.com
 
 import CSSH2
-import Darwin
 import Extension
 import Foundation
 import libetos
@@ -176,7 +175,7 @@ public extension SSH {
         }
 
         // 检查返回的事件中是否包含错误、挂断等异常标志
-        let revents = Int32(pollFd.revents)
+        let revents = pollFd.revents.int32
         if (revents & (LIBSSH2_POLLFD_POLLERR | LIBSSH2_POLLFD_POLLEXT | LIBSSH2_POLLFD_POLLHUP))
             != 0
         {
