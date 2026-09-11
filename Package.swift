@@ -44,7 +44,10 @@ let package = Package(
             ]
         ),
         .target(
-            name: "Extension"
+            name: "Extension",
+            dependencies: [
+                .target(name: "libetos"),
+            ]
         ),
         .target(
             name: "Proxy",
