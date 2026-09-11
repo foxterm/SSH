@@ -12,11 +12,13 @@ import Proxy
 public extension SSH {
     /// 发起标准的 TCP 直接连接
     /// 使用 libetos 库进行非阻塞/带超时的 Socket 初始化
-    /// - Returns: 是否连接成功
+    /// - Returns: 是否连接成功（Bool）
     func connect() async -> Bool {
+        // 异步调用底层 IO 执行连接操作
         fd = await io.call { [self] in
             etos_socket_connect(host, port.int32, timeout.int32 * 1000)
         }
+        // 校验连接状态，若失败则提取并保存错误信息
         guard isConnected else {
             error = socketLastStrError
             return false
@@ -27,9 +29,11 @@ public extension SSH {
     /// 通过代理服务器发起连接
     /// 支持 SOCKS5、HTTP 代理
     /// - Parameter proxy: 代理配置信息对象
-    /// - Returns: 是否连接成功
+    /// - Returns: 是否连接成功（Bool）
     func connect(proxy: ProxyConfiguration) async -> Bool {
+        // 使用代理配置发起异步连接
         fd = await proxy.connect(host: host, port: port)
+        // 校验连接状态，若失败则提取并保存错误信息
         guard isConnected else {
             error = socketLastStrError
             return false
@@ -37,27 +41,31 @@ public extension SSH {
         return true
     }
 
-    /// 获取当前连接的远程地址
+    /// 获取当前连接的远程地址（IP:Port）
     var remoteAddr: String? {
         var ipBuffer = [CChar](repeating: 0, count: 64)
         var port: Int32 = 0
 
+        // 调用 libetos 获取对端地址信息，失败则返回 nil
         guard etos_socket_get_peer_info(fd, &ipBuffer, ipBuffer.count, &port) == 0 else {
             return nil
         }
         let host = ipBuffer.string
+        // 拼接主机名与端口号
         return Net.joinHostPort(host: host, port: port.int)
     }
 
-    /// 获取当前连接的本地地址
+    /// 获取当前连接的本地地址（IP:Port）
     var localAddr: String? {
         var ipBuffer = [CChar](repeating: 0, count: 64)
         var port: Int32 = 0
 
+        // 调用 libetos 获取本地绑定信息，失败则返回 nil
         guard etos_socket_get_local_info(fd, &ipBuffer, ipBuffer.count, &port) == 0 else {
             return nil
         }
         let host = ipBuffer.string
+        // 拼接主机名与端口号
         return Net.joinHostPort(host: host, port: port.int)
     }
 
@@ -97,12 +105,17 @@ public extension SSH {
 //        return size
 //    }
 
+    /// 当前 Socket 的网络流量统计
+    /// - Returns: 元组 (send: 已发送字节数, recv: 已接收字节数)
     var trafficStats: (send: UInt64, recv: UInt64) {
+        // 无效的文件描述符直接返回 0 流量
         guard fd >= 0 else { return (0, 0) }
         var stats = FdTrafficStats()
+        // 从 libetos 获取当前句柄的流量数据
         guard etos_socket_get_traffic_stats(fd, &stats) == 0 else {
             return (0, 0)
         }
+        // 解析并返回发送 (TX) 与接收 (RX) 的字节总量
         return (etos_stats_get_tx(&stats), etos_stats_get_rx(&stats))
     }
 
@@ -111,30 +124,35 @@ public extension SSH {
         etos_socket_is_connect(fd)
     }
 
-    /// 获取底层 Socket 的错误码
+    /// 获取底层 Socket 的最近一次错误码
     var socketLastError: Int32 {
         etos_socket_last_error()
     }
 
-    /// 获取底层 Socket 的错误描述字符串
+    /// 获取底层 Socket 的最近一次错误描述字符串
     var socketLastStrError: String {
         etos_socket_strerror(socketLastError).string
     }
 
-    /// 等待套接字就绪（配合 libssh2 的非阻塞 IO）
+    /// 等待套接字就绪（配合 libssh2 的非阻塞 IO 进行事件轮询）
+    /// - Returns: 套接字是否正常/可继续操作
     func waitSocket() -> Bool {
+        // 校验 SSH 会话是否存在且套接字处于连接状态
         guard rawSession != nil, isConnected else {
             return false
         }
 
+        // 获取 libssh2 期望阻塞的方向（读/写）
         let dir = libssh2_session_block_directions(rawSession)
 
+        // 初始化 libssh2 的轮询结构体
         var pollFd = LIBSSH2_POLLFD()
         pollFd.type = LIBSSH2_POLLFD_SOCKET.uint8
         pollFd.fd.socket = fd
         pollFd.events = 0
         pollFd.revents = 0
 
+        // 根据阻塞方向注册对应的轮询事件（可读/可写）
         if dir == 0 {
             pollFd.events |= LIBSSH2_POLLFD_POLLIN.uint
         } else {
@@ -146,14 +164,18 @@ public extension SSH {
             }
         }
 
+        // 执行非阻塞轮询，超时时间设置为 10 毫秒
         let rc = libssh2_poll(&pollFd, 1, 10)
 
         if rc < 0 {
+            // 轮询过程发生错误
             return false
         } else if rc == 0 {
+            // 超时但套接字无异常，可以继续
             return true
         }
 
+        // 检查返回的事件中是否包含错误、挂断等异常标志
         let revents = Int32(pollFd.revents)
         if (revents & (LIBSSH2_POLLFD_POLLERR | LIBSSH2_POLLFD_POLLEXT | LIBSSH2_POLLFD_POLLHUP))
             != 0
@@ -164,14 +186,13 @@ public extension SSH {
         return true
     }
 
-    /// 执行 Socket 半关闭操作
-    /// - Parameter how: 关闭类型
+    /// 执行 Socket 半关闭操作（关闭读或写通道）
+    /// - Parameter how: 关闭类型（如只关发送或只关接收）
     func shutdown(_ how: Shout) {
         etos_socket_shutdown(fd, how.raw)
     }
 
     /// 彻底关闭并释放 Socket 资源
-    /// 包含互斥锁保护以确保线程安全，并释放 SSL 上下文
     func closeSocket() {
         etos_socket_close(fd)
         #if DEBUG
