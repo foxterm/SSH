@@ -34,14 +34,19 @@ typedef struct {
  * @return 成功返回 0，失败返回 -1 (例如非 TCP 套接字或已断开)
  */
 int etos_socket_get_traffic_stats(int fd, FdTrafficStats *stats);
-static inline unsigned long long etos_stats_get_rx(const FdTrafficStats *stats) {
-    if (!stats) return 0;
-    return atomic_load(&stats->rx_bytes);
+
+static inline unsigned long long
+etos_stats_get_rx(const FdTrafficStats *stats) {
+  if (!stats)
+    return 0;
+  return atomic_load(&stats->rx_bytes);
 }
 
-static inline unsigned long long etos_stats_get_tx(const FdTrafficStats *stats) {
-    if (!stats) return 0;
-    return atomic_load(&stats->tx_bytes);
+static inline unsigned long long
+etos_stats_get_tx(const FdTrafficStats *stats) {
+  if (!stats)
+    return 0;
+  return atomic_load(&stats->tx_bytes);
 }
 
 /**
