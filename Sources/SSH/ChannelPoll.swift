@@ -315,19 +315,19 @@ extension ChannelPoll {
     func read(data: Buffer<CChar>, task: ChannelStream, output: OutputStream? = nil, stream_id: Int32) -> Int64 {
         let targetOutput = output ?? task.output
 
-        // 将 C 底层函数调用完全放入锁内保护，防止执行 C 代码期间句柄被外部销毁
+        guard let rawBuffer = UnsafeMutableRawPointer(data.buffer)?.assumingMemoryBound(to: CChar.self) else {
+            return -1
+        }
+
         let n = mutex.withLock { () -> Int in
             guard !task.isCancelled, _tasks[task.handle] != nil else { return -1 }
-            return libssh2_channel_read_ex(task.handle, stream_id, data.buffer, data.count)
+            return libssh2_channel_read_ex(task.handle, stream_id, rawBuffer, data.count)
         }
 
         if n > 0 {
-            // 确保全量写入 OutputStream，避免高并发或缓存区不足时漏数据
-            let success = writeFully(to: targetOutput, buffer: UnsafeRawPointer(data.buffer).assumingMemoryBound(to: UInt8.self), count: n)
+            let success = writeFully(to: targetOutput, buffer: UnsafeRawPointer(rawBuffer).assumingMemoryBound(to: UInt8.self), count: n)
             return success ? n.int64 : -1
-        } else if n == LIBSSH2_ERROR_EAGAIN {
-            return 0
-        } else if n == 0 {
+        } else if n == LIBSSH2_ERROR_EAGAIN || n == 0 {
             return 0
         } else {
             return -1
