@@ -5,6 +5,8 @@
 import Foundation
 
 public extension Bundle {
+    /// 获取当前应用的显示名称
+    /// 优先读取 `CFBundleDisplayName`，若不存在则退回读取 `CFBundleName`
     static var appName: String {
         let info = Bundle.main.infoDictionary
         if let displayName = info?["CFBundleDisplayName"] as? String {
@@ -16,6 +18,8 @@ public extension Bundle {
         return ""
     }
 
+    /// 获取当前应用的版本号
+    /// macOS 平台读取短版本号（`CFBundleShortVersionString`），其他平台（如 iOS/tvOS/watchOS）读取构建版本号（`CFBundleVersion`）
     static var currentAppVersion: String {
         #if os(macOS)
             let infoDictionaryKey = "CFBundleShortVersionString"
