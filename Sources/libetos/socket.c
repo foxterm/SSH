@@ -352,6 +352,24 @@ static bool handshake_socks5_proxy(int fd, const char *target_host,
 /* ------------------------------------------------------------
    外部接口实现
    ------------------------------------------------------------ */
+int etos_socket_get_traffic_stats(int fd, FdTrafficStats *stats) {
+  if (fd < 0 || !stats) {
+    return -1;
+  }
+
+  struct tcp_connection_info info;
+  socklen_t len = sizeof(info);
+
+  // 调用 Darwin 内核 TCP 统计 API
+  if (getsockopt(fd, IPPROTO_TCP, TCP_CONNECTION_INFO, &info, &len) == 0) {
+    // 原子操作赋值（兼顾多线程安全读取）
+    atomic_store(&stats->rx_bytes, info.tcpi_rxbytes);
+    atomic_store(&stats->tx_bytes, info.tcpi_txbytes);
+    return 0;
+  }
+
+  return -1;
+}
 
 int etos_socket_set_keepalive(int fd, bool enable, int idle_sec,
                               int interval_sec, int count) {
@@ -494,8 +512,7 @@ ssize_t etos_socket_recv(int fd, char *buf, size_t len, int flags) {
   return rc;
 }
 
-ssize_t libssh2_recv(int sock, void *buffer, size_t length,
-                     int flags) {
+ssize_t libssh2_recv(int sock, void *buffer, size_t length, int flags) {
   ssize_t rc;
 
   rc = recv(sock, buffer, length, flags);
@@ -529,8 +546,7 @@ ssize_t libssh2_recv(int sock, void *buffer, size_t length,
  *
  * Replacement for the standard send, return -errno on failure.
  */
-ssize_t libssh2_send(int sock, const void *buffer, size_t length,
-                     int flags) {
+ssize_t libssh2_send(int sock, const void *buffer, size_t length, int flags) {
   ssize_t rc;
 
   rc = send(sock, buffer, length, flags);

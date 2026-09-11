@@ -38,10 +38,10 @@ public class SSH {
     /// 记录最近一次发生的错误描述
     public internal(set) var error: String?
 
-    /// 原子计数器：实时统计发送的总字节数
-    public let sendSize: Atomic = .init()
-    /// 原子计数器：实时统计接收的总字节数
-    public let recvSize: Atomic = .init()
+//    /// 原子计数器：实时统计发送的总字节数
+//    public let sendSize: Atomic = .init()
+//    /// 原子计数器：实时统计接收的总字节数
+//    public let recvSize: Atomic = .init()
 
     /// 用于同步并发任务的等待组
     let wait: WaitGroup = .init()
@@ -77,15 +77,15 @@ public class SSH {
         )
     }
 
-    /// 劫持 libssh2 的底层发送行为，路由到 libetos 处理 SSL 或流量统计
-    let sendCallback: sendType = { fd, buffer, length, flags, abstract in
-        abstract.ssh.send(fd: fd, buffer: buffer, length: length, flags: flags)
-    }
-
-    /// 劫持 libssh2 的底层接收行为
-    let recvCallback: recvType = { fd, buffer, length, flags, abstract in
-        abstract.ssh.recv(fd: fd, buffer: buffer, length: length, flags: flags)
-    }
+//    /// 劫持 libssh2 的底层发送行为，路由到 libetos 处理 SSL 或流量统计
+//    let sendCallback: sendType = { fd, buffer, length, flags, abstract in
+//        abstract.ssh.send(fd: fd, buffer: buffer, length: length, flags: flags)
+//    }
+//
+//    /// 劫持 libssh2 的底层接收行为
+//    let recvCallback: recvType = { fd, buffer, length, flags, abstract in
+//        abstract.ssh.recv(fd: fd, buffer: buffer, length: length, flags: flags)
+//    }
 
     public init(
         host: String, port: Int, compress: Bool = false, timeout: Int = 10,

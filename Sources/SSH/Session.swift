@@ -33,16 +33,16 @@ public extension SSH {
             LIBSSH2_CALLBACK_DISCONNECT,
             unsafeBitCast(disconnectCallback, to: cbGenericType.self)
         )
-        libssh2_session_callback_set2(
-            rawSession,
-            LIBSSH2_CALLBACK_SEND,
-            unsafeBitCast(sendCallback, to: cbGenericType.self)
-        )
-        libssh2_session_callback_set2(
-            rawSession,
-            LIBSSH2_CALLBACK_RECV,
-            unsafeBitCast(recvCallback, to: cbGenericType.self)
-        )
+//        libssh2_session_callback_set2(
+//            rawSession,
+//            LIBSSH2_CALLBACK_SEND,
+//            unsafeBitCast(sendCallback, to: cbGenericType.self)
+//        )
+//        libssh2_session_callback_set2(
+//            rawSession,
+//            LIBSSH2_CALLBACK_RECV,
+//            unsafeBitCast(recvCallback, to: cbGenericType.self)
+//        )
 
         // 配置会话选项
         libssh2_session_flag(rawSession, LIBSSH2_FLAG_COMPRESS, compress ? 1 : 0)

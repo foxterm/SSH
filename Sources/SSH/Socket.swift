@@ -61,40 +61,49 @@ public extension SSH {
         return Net.joinHostPort(host: host, port: port.int)
     }
 
-    /// 内部数据发送方法
-    /// - Parameters:
-    ///   - fd: 套接字句柄
-    ///   - buffer: 待发送数据指针
-    ///   - length: 数据长度
-    ///   - flags: 系统 send 标志位
-    /// - Returns: 实际发送的字节数，负值代表错误
-    func send(fd: Int32, buffer: UnsafeRawPointer, length: ssize_t, flags: CInt) -> Int {
-        let size = libssh2_send(fd, buffer, length, flags)
-        if size < 0 {
-            return size
-        }
-        // 原子增加全局发送流量统计
-        sendSize.add(size)
-        return size
-    }
+//    /// 内部数据发送方法
+//    /// - Parameters:
+//    ///   - fd: 套接字句柄
+//    ///   - buffer: 待发送数据指针
+//    ///   - length: 数据长度
+//    ///   - flags: 系统 send 标志位
+//    /// - Returns: 实际发送的字节数，负值代表错误
+//    func send(fd: Int32, buffer: UnsafeRawPointer, length: ssize_t, flags: CInt) -> Int {
+//        let size = libssh2_send(fd, buffer, length, flags)
+//        if size < 0 {
+//            return size
+//        }
+//        // 原子增加全局发送流量统计
+//        sendSize.add(size)
+//        return size
+//    }
+//
+//    /// 内部数据接收方法
+//    /// - Parameters:
+//    ///   - fd: 套接字句柄
+//    ///   - buffer: 接收缓冲区指针
+//    ///   - length: 预期接收长度
+//    ///   - flags: 系统 recv 标志位
+//    /// - Returns: 实际接收的字节数，负值代表错误
+//    func recv(fd: Int32, buffer: UnsafeMutableRawPointer, length: ssize_t, flags: CInt)
+//        -> Int
+//    {
+//        let size = libssh2_recv(fd, buffer, length, flags)
+//        if size < 0 {
+//            return size
+//        }
+//        // 原子增加全局接收流量统计
+//        recvSize.add(size)
+//        return size
+//    }
 
-    /// 内部数据接收方法
-    /// - Parameters:
-    ///   - fd: 套接字句柄
-    ///   - buffer: 接收缓冲区指针
-    ///   - length: 预期接收长度
-    ///   - flags: 系统 recv 标志位
-    /// - Returns: 实际接收的字节数，负值代表错误
-    func recv(fd: Int32, buffer: UnsafeMutableRawPointer, length: ssize_t, flags: CInt)
-        -> Int
-    {
-        let size = libssh2_recv(fd, buffer, length, flags)
-        if size < 0 {
-            return size
+    var trafficStats: (send: UInt64, recv: UInt64) {
+        guard fd >= 0 else { return (0, 0) }
+        var stats = FdTrafficStats()
+        guard etos_socket_get_traffic_stats(fd, &stats) == 0 else {
+            return (0, 0)
         }
-        // 原子增加全局接收流量统计
-        recvSize.add(size)
-        return size
+        return (etos_stats_get_tx(&stats), etos_stats_get_rx(&stats))
     }
 
     /// 检查底层 Socket 是否处于已连接状态

@@ -1,5 +1,6 @@
 #ifndef ETOS_SOCKET_H
 #define ETOS_SOCKET_H
+#include <stdatomic.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <sys/types.h>
@@ -15,10 +16,33 @@ extern "C" {
 
 /* 常规常量定义 */
 #define ETOS_INVALID_SOCKET (-1)
+/* ------------------------------------------------------------
+   流量统计数据结构
+   ------------------------------------------------------------ */
+typedef struct {
+  _Atomic unsigned long long rx_bytes; /* 接收总字节数 */
+  _Atomic unsigned long long tx_bytes; /* 发送总字节数 */
+} FdTrafficStats;
 
 /* ------------------------------------------------------------
    网络 I/O 服务 (macOS / iOS 专用)
    ------------------------------------------------------------ */
+/**
+ * 获取 Socket 当前累积的发送与接收流量（Apple 官方推荐姿势）
+ * @param fd Socket 文件描述符
+ * @param stats 输出结构体指针，用于接收字节统计
+ * @return 成功返回 0，失败返回 -1 (例如非 TCP 套接字或已断开)
+ */
+int etos_socket_get_traffic_stats(int fd, FdTrafficStats *stats);
+static inline unsigned long long etos_stats_get_rx(const FdTrafficStats *stats) {
+    if (!stats) return 0;
+    return atomic_load(&stats->rx_bytes);
+}
+
+static inline unsigned long long etos_stats_get_tx(const FdTrafficStats *stats) {
+    if (!stats) return 0;
+    return atomic_load(&stats->tx_bytes);
+}
 
 /**
  * 创建 TCP 连接（支持 IPv4/IPv6 自动解析）
@@ -55,10 +79,8 @@ ssize_t etos_socket_recv_timeout(int fd, char *buf, size_t len, int flags,
 ssize_t etos_socket_send(int fd, const char *buf, size_t len, int flags);
 ssize_t etos_socket_recv(int fd, char *buf, size_t len, int flags);
 
-ssize_t libssh2_recv(int sock, void *buffer, size_t length,
-                     int flags);
-ssize_t libssh2_send(int sock, const void *buffer, size_t length,
-                     int flags);
+ssize_t libssh2_recv(int sock, void *buffer, size_t length, int flags);
+ssize_t libssh2_send(int sock, const void *buffer, size_t length, int flags);
 
 /** 关闭传输通道 (how: SHUT_RD=0, SHUT_WR=1, SHUT_RDWR=2) */
 int etos_socket_shutdown(int fd, int how);
