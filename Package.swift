@@ -18,7 +18,7 @@ let package = Package(
     ],
     dependencies: [
         .package(
-            url: "https://github.com/krzyzanowskim/OpenSSL.git", .upToNextMajor(from: "3.6.0001")
+            url: "https://github.com/krzyzanowskim/OpenSSL.git",from: "3.6.0001"
         ),
         .package(url: "https://github.com/foxterm/libssh2.git", branch: "main"),
     ],
