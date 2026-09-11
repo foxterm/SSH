@@ -20,8 +20,8 @@ extern "C" {
    流量统计数据结构
    ------------------------------------------------------------ */
 typedef struct {
-  _Atomic unsigned long long rx_bytes; /* 接收总字节数 */
-  _Atomic unsigned long long tx_bytes; /* 发送总字节数 */
+  _Atomic u_int64_t rx_bytes; /* 接收总字节数 */
+  _Atomic u_int64_t tx_bytes; /* 发送总字节数 */
 } FdTrafficStats;
 
 /* ------------------------------------------------------------
@@ -35,19 +35,8 @@ typedef struct {
  */
 int etos_socket_get_traffic_stats(int fd, FdTrafficStats *stats);
 
-static inline unsigned long long
-etos_stats_get_rx(const FdTrafficStats *stats) {
-  if (!stats)
-    return 0;
-  return atomic_load(&stats->rx_bytes);
-}
-
-static inline unsigned long long
-etos_stats_get_tx(const FdTrafficStats *stats) {
-  if (!stats)
-    return 0;
-  return atomic_load(&stats->tx_bytes);
-}
+u_int64_t etos_stats_get_rx(const FdTrafficStats *stats);
+u_int64_t etos_stats_get_tx(const FdTrafficStats *stats);
 
 /**
  * 创建 TCP 连接（支持 IPv4/IPv6 自动解析）
