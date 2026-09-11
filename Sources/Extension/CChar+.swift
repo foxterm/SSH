@@ -5,21 +5,21 @@
 import Foundation
 
 public extension UnsafePointer<CChar> {
-    /// Converts an `UnsafePointer<CChar>` to a `String`.
+    /// 将不可变的 `UnsafePointer<CChar>` (C 字符串指针) 转为 Swift `String`
     var string: String {
         String(cString: self)
     }
 }
 
 public extension UnsafeMutablePointer<CChar> {
-    /// Converts an `UnsafeMutablePointer<CChar>` to a `String`.
+    /// 将可变的 `UnsafeMutablePointer<CChar>` (C 字符串指针) 转为 Swift `String`
     var string: String {
         String(cString: self)
     }
 }
 
 public extension [CChar] {
-    /// Converts an array of `CChar` to a `String`.
+    /// 将 `CChar` 数组 (C 字符数组) 转为 Swift `String`
     var string: String {
         String(cString: self)
     }
