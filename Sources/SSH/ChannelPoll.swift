@@ -314,18 +314,13 @@ extension ChannelPoll {
 
     func read(data: Buffer<CChar>, task: ChannelStream, output: OutputStream? = nil, stream_id: Int32) -> Int64 {
         let targetOutput = output ?? task.output
-
-        guard let rawBuffer = UnsafeMutableRawPointer(data.buffer)?.assumingMemoryBound(to: CChar.self) else {
-            return -1
-        }
-
-        let n = mutex.withLock { () -> Int in
+        let n = mutex.withLock {
             guard !task.isCancelled, _tasks[task.handle] != nil else { return -1 }
-            return libssh2_channel_read_ex(task.handle, stream_id, rawBuffer, data.count)
+            return libssh2_channel_read_ex(task.handle, stream_id, data.buffer, data.count)
         }
 
         if n > 0 {
-            let success = writeFully(to: targetOutput, buffer: UnsafeRawPointer(rawBuffer).assumingMemoryBound(to: UInt8.self), count: n)
+            let success = writeFully(to: targetOutput, buffer: data.buffer, count: n)
             return success ? n.int64 : -1
         } else if n == LIBSSH2_ERROR_EAGAIN || n == 0 {
             return 0
@@ -334,7 +329,7 @@ extension ChannelPoll {
         }
     }
 
-    private func writeFully(to output: OutputStream, buffer: UnsafePointer<UInt8>, count: Int) -> Bool {
+    private func writeFully(to output: OutputStream, buffer: UnsafePointer<CChar>, count: Int) -> Bool {
         var totalWritten = 0
         while totalWritten < count {
             let written = output.write(buffer.advanced(by: totalWritten), maxLength: count - totalWritten)
@@ -353,7 +348,7 @@ extension ChannelPoll {
             let rc = task.writeBuffer.withUnsafeBufferPointer { bp -> Int in
                 guard let baseAddr = bp.baseAddress else { return 0 }
                 let ptr = baseAddr.advanced(by: task.writeBufferOffset)
-                return mutex.withLock { () -> Int in
+                return mutex.withLock {
                     guard !task.isCancelled, _tasks[task.handle] != nil else { return -1 }
                     return libssh2_channel_write_ex(task.handle, 0, ptr, pendingCount)
                 }
@@ -377,7 +372,7 @@ extension ChannelPoll {
 
         let nread = input.read(data.buffer, maxLength: data.count)
         if nread > 0 {
-            let written = mutex.withLock { () -> Int in
+            let written = mutex.withLock {
                 guard !task.isCancelled, _tasks[task.handle] != nil else { return -1 }
                 return libssh2_channel_write_ex(task.handle, 0, data.buffer, nread)
             }
