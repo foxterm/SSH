@@ -371,6 +371,18 @@ int etos_socket_get_traffic_stats(int fd, FdTrafficStats *stats) {
   return -1;
 }
 
+u_int64_t etos_stats_get_rx(const FdTrafficStats *stats) {
+  if (!stats)
+    return 0;
+  return atomic_load(&stats->rx_bytes);
+}
+
+u_int64_t etos_stats_get_tx(const FdTrafficStats *stats) {
+  if (!stats)
+    return 0;
+  return atomic_load(&stats->tx_bytes);
+}
+
 int etos_socket_set_keepalive(int fd, bool enable, int idle_sec,
                               int interval_sec, int count) {
   int optval = enable ? 1 : 0;
