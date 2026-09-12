@@ -37,6 +37,7 @@ let package = Package(
                 .target(name: "Proxy"),
                 .target(name: "Sync"),
                 .target(name: "libetos"),
+                .target(name: "libtracked"),
                 .product(name: "CSSH2", package: "libssh2"),
             ]
         ),
@@ -62,9 +63,15 @@ let package = Package(
         .target(
             name: "libetos",
             dependencies: [
-                .product(name: "OpenSSL", package: "OpenSSL"),
             ]
         ),
+        .target(
+            name: "libtracked",
+            dependencies: [
+                .product(name: "CSSH2", package: "libssh2"),
+            ]
+        ),
+
     ],
     swiftLanguageVersions: [.v5]
 )
