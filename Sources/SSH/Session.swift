@@ -6,30 +6,14 @@ import CSSH2
 import Extension
 import Foundation
 import libetos
+import libtracked
 
 public extension SSH {
-    static let isInitialized: Bool = {
-        let result = libssh2_init(0)
-        #if DEBUG
-            if result == 0 {
-                print("✅ libssh2 初始化成功")
-            } else {
-                print("❌ libssh2 初始化失败, 错误码: \(result)")
-            }
-        #endif
-        return result == 0
-    }()
-
     /// 执行 SSH 握手协议
     /// 包含会话初始化、回调绑定、压缩配置及底层握手协商
     /// - Returns: 握手成功返回 true，否则释放资源并返回 false
     func handshake() async -> Bool {
-        guard SSH.isInitialized else {
-            return false
-        }
-
-        // 初始化 libssh2 会话，将 self 指针传入以便在回调中获取上下文
-        rawSession = libssh2_session_init_ex(nil, nil, nil, Unmanaged.passUnretained(self).toOpaque())
+        rawSession = ssh2_session_init_tracked(Unmanaged.passUnretained(self).toOpaque())
         guard let rawSession else {
             return false
         }
