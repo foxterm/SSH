@@ -35,7 +35,20 @@ typedef struct {
  */
 int etos_socket_get_traffic_stats(int fd, FdTrafficStats *stats);
 
+/**
+ * 获取接收的字节数
+ * @param stats 指向 FdTrafficStats 结构体的指针
+ * @return 成功返回字节数，失败返回 -1
+ * @note 该函数仅用于获取最新的统计信息，不会重置计数器。
+ */
 u_int64_t etos_stats_get_rx(const FdTrafficStats *stats);
+
+/**
+ * 获取发送的字节数
+ * @param stats 指向 FdTrafficStats 结构体的指针
+ * @return 成功返回字节数，失败返回 -1
+ * @note 该函数仅用于获取最新的统计信息，不会重置计数器。
+ */
 u_int64_t etos_stats_get_tx(const FdTrafficStats *stats);
 
 /**
