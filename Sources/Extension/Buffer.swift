@@ -10,11 +10,6 @@ public class Buffer<T> {
     private var cBuffer: UnsafeMutablePointer<etos_buffer_t>?
     public let count: Int
 
-    /// 指向底层内存区域的指针
-    public var buffer: UnsafeMutablePointer<T> {
-        cBuffer!.pointee.ptr.assumingMemoryBound(to: T.self)
-    }
-
     /// 初始化指定容量的内存缓冲区
     public init(_ capacity: Int = MemoryLayout<T>.size) {
         count = capacity
@@ -33,6 +28,11 @@ public class Buffer<T> {
 }
 
 public extension Buffer {
+    /// 指向底层内存区域的指针
+    var buffer: UnsafeMutablePointer<T> {
+        cBuffer!.pointee.ptr.assumingMemoryBound(to: T.self)
+    }
+
     /// 返回包含缓冲区中前指定字节数的 Data 对象
     func data(_ count: Int) -> Data {
         guard let cBuffer else { return Data() }
