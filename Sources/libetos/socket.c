@@ -365,6 +365,8 @@ int etos_socket_get_traffic_stats(int fd, FdTrafficStats *stats) {
     // 原子操作赋值（兼顾多线程安全读取）
     atomic_store(&stats->rx_bytes, info.tcpi_rxbytes);
     atomic_store(&stats->tx_bytes, info.tcpi_txbytes);
+    // RTT 数据：实时覆盖更新（tcpi_rttcur 单位为微秒 us）
+    atomic_store(&stats->rtt_us, info.tcpi_rttcur);
     return 0;
   }
 
@@ -381,6 +383,12 @@ u_int64_t etos_stats_get_tx(const FdTrafficStats *stats) {
   if (!stats)
     return 0;
   return atomic_load(&stats->tx_bytes);
+}
+
+u_int32_t etos_stats_get_rtt(const FdTrafficStats *stats) {
+  if (!stats)
+    return 0;
+  return atomic_load(&stats->rtt_us);
 }
 
 int etos_socket_set_keepalive(int fd, bool enable, int idle_sec,
