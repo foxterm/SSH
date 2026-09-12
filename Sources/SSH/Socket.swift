@@ -105,16 +105,17 @@ public extension SSH {
 //    }
 
     /// 当前 Socket 的网络流量统计
-    /// - Returns: 元组 (send: 已发送字节数, recv: 已接收字节数)
-    var trafficStats: (send: UInt64, recv: UInt64) {
-        guard fd >= 0 else { return (0, 0) }
+    /// - Returns: 元组 (send: 已发送字节数, recv: 已接收字节数, rtt: 实时往返时间（微秒))
+    var trafficStats: (send: UInt64, recv: UInt64, rtt: UInt32) {
+        guard fd >= 0 else { return (0, 0, 0) }
         var stats = FdTrafficStats()
         guard etos_socket_get_traffic_stats(fd, &stats) == 0 else {
-            return (0, 0)
+            return (0, 0, 0)
         }
         let tx = etos_stats_get_tx(&stats)
         let rx = etos_stats_get_rx(&stats)
-        return (tx, rx)
+        let rtt = etos_stats_get_rtt(&stats)
+        return (tx, rx, rtt)
     }
 
     /// 检查底层 Socket 是否处于已连接状态
