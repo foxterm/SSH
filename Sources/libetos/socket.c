@@ -362,7 +362,7 @@ int etos_socket_get_traffic_stats(int fd, FdTrafficStats *stats) {
 
   // 调用 Darwin 内核 TCP 统计 API
   if (getsockopt(fd, IPPROTO_TCP, TCP_CONNECTION_INFO, &info, &len) == 0) {
-    // 原子操作赋值（兼顾多线程安全读取）
+    // 流量数据：累计原子写入
     atomic_store(&stats->rx_bytes, info.tcpi_rxbytes);
     atomic_store(&stats->tx_bytes, info.tcpi_txbytes);
     // RTT 数据：实时覆盖更新（tcpi_rttcur 单位为微秒 us）
