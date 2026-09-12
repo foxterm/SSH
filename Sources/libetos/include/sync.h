@@ -69,7 +69,6 @@ int64_t etos_sync_atomic_sub(volatile int64_t *addr, int64_t delta);
 int64_t etos_sync_atomic_exchange(volatile int64_t *addr, int64_t value);
 
 /** 原子比较交换 (CAS) */
-int64_t etos_sync_atomic_cas(volatile int64_t *addr, int64_t expected,
-                             int64_t desired);
+int64_t etos_sync_atomic_cas(volatile int64_t *addr, int64_t expected, int64_t desired);
 
 #endif /* ETOS_SYNC_H */

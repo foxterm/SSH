@@ -22,7 +22,7 @@ extern "C" {
 typedef struct {
   _Atomic u_int64_t rx_bytes; /* 接收总字节数 */
   _Atomic u_int64_t tx_bytes; /* 发送总字节数 */
-  _Atomic u_int32_t rtt_us;    /* 当前实时往返时间（微秒，瞬时值） */
+  _Atomic u_int32_t rtt_us;   /* 当前实时往返时间（微秒，瞬时值） */
 } FdTrafficStats;
 
 /* ------------------------------------------------------------
@@ -78,16 +78,11 @@ int etos_socket_connect(const char *host, int port, int timeout_ms);
  * @param user 认证用户名（无认证传 NULL）
  * @param password 认证密码（无认证传 NULL）
  */
-int etos_socket_connect_proxy(int type, const char *proxy_host, int proxy_port,
-                              int timeout_ms, const char *target_host,
-                              int target_port, const char *user,
-                              const char *password);
+int etos_socket_connect_proxy(int type, const char *proxy_host, int proxy_port, int timeout_ms, const char *target_host, int target_port, const char *user, const char *password);
 
 /** 带超时的 Send/Recv */
-ssize_t etos_socket_send_timeout(int fd, const char *buf, size_t len, int flags,
-                                 int timeout_ms);
-ssize_t etos_socket_recv_timeout(int fd, char *buf, size_t len, int flags,
-                                 int timeout_ms);
+ssize_t etos_socket_send_timeout(int fd, const char *buf, size_t len, int flags, int timeout_ms);
+ssize_t etos_socket_recv_timeout(int fd, char *buf, size_t len, int flags, int timeout_ms);
 
 /** 原始数据收发 */
 ssize_t etos_socket_send(int fd, const char *buf, size_t len, int flags);
@@ -114,8 +109,7 @@ bool etos_socket_is_connect(int fd);
  * @param interval_sec 心跳包发送间隔(秒)
  * @param count 没收到响应时的重试次数
  */
-int etos_socket_set_keepalive(int fd, bool enable, int idle_sec,
-                              int interval_sec, int count);
+int etos_socket_set_keepalive(int fd, bool enable, int idle_sec, int interval_sec, int count);
 
 /** 设置 TCP_NODELAY (禁用 Nagle 算法，降低延迟) */
 int etos_socket_set_nodelay(int fd, bool enable);
@@ -136,8 +130,7 @@ const char *etos_socket_strerror(int errnum);
  * @param port 用于接收端口号的指针
  * @return int 成功返回 0，失败返回 -1
  */
-int etos_socket_get_peer_info(int fd, char *ip_buf, size_t ip_buf_len,
-                              int *port);
+int etos_socket_get_peer_info(int fd, char *ip_buf, size_t ip_buf_len, int *port);
 /**
  * @brief 获取套接字的本地 (Client) IP 和端口
  *
@@ -148,8 +141,7 @@ int etos_socket_get_peer_info(int fd, char *ip_buf, size_t ip_buf_len,
  * @param port 用于接收端口号的指针
  * @return int 成功返回 0，失败返回 -1
  */
-int etos_socket_get_local_info(int fd, char *ip_buf, size_t ip_buf_len,
-                               int *port);
+int etos_socket_get_local_info(int fd, char *ip_buf, size_t ip_buf_len, int *port);
 
 #ifdef __cplusplus
 }

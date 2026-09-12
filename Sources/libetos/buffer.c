@@ -32,8 +32,7 @@ void etos_buffer_free(etos_buffer_t *buf) {
   free(buf);
 }
 
-void etos_buffer_copy_bytes(etos_buffer_t *buf, void *out_target,
-                            size_t count) {
+void etos_buffer_copy_bytes(etos_buffer_t *buf, void *out_target, size_t count) {
   if (!buf || !buf->ptr || !out_target)
     return;
 

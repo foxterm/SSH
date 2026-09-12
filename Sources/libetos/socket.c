@@ -1,4 +1,5 @@
 #include "socket.h"
+
 #include <arpa/inet.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -35,8 +36,7 @@ static bool recv_exact(int fd, void *buf, size_t len, int timeout_ms) {
   char *ptr = (char *)buf;
 
   while (total_read < len) {
-    ssize_t rc = etos_socket_recv_timeout(fd, ptr + total_read,
-                                          len - total_read, 0, timeout_ms);
+    ssize_t rc = etos_socket_recv_timeout(fd, ptr + total_read, len - total_read, 0, timeout_ms);
     if (rc <= 0) {
       return false;
     }
@@ -45,8 +45,7 @@ static bool recv_exact(int fd, void *buf, size_t len, int timeout_ms) {
   return true;
 }
 
-static int connect_with_timeout(int fd, const struct sockaddr *addr,
-                                socklen_t addrlen, int timeout_ms) {
+static int connect_with_timeout(int fd, const struct sockaddr *addr, socklen_t addrlen, int timeout_ms) {
   if (timeout_ms <= 0) {
     return connect(fd, addr, addrlen);
   }
@@ -90,8 +89,7 @@ static int connect_with_timeout(int fd, const struct sockaddr *addr,
   return 0;
 }
 
-static int extract_sockaddr_info(const struct sockaddr_storage *addr,
-                                 char *ip_buf, size_t ip_buf_len, int *port) {
+static int extract_sockaddr_info(const struct sockaddr_storage *addr, char *ip_buf, size_t ip_buf_len, int *port) {
   if (addr->ss_family == AF_INET) {
     struct sockaddr_in *s = (struct sockaddr_in *)addr;
     *port = ntohs(s->sin_port);
@@ -130,9 +128,7 @@ char *etos_base64_encode(const char *input) {
   return out;
 }
 
-static bool handshake_http_proxy(int fd, const char *target_host,
-                                 int target_port, const char *user,
-                                 const char *password, int timeout_ms) {
+static bool handshake_http_proxy(int fd, const char *target_host, int target_port, const char *user, const char *password, int timeout_ms) {
   if (!target_host || target_port <= 0 || target_port > 65535) {
     return false;
   }
@@ -146,8 +142,7 @@ static bool handshake_http_proxy(int fd, const char *target_host,
     snprintf(auth_raw, sizeof(auth_raw), "%s:%s", user, password);
     char *auth_b64 = etos_base64_encode(auth_raw);
     if (auth_b64) {
-      snprintf(auth_header, sizeof(auth_header),
-               "Proxy-Authorization: Basic %s\r\n", auth_b64);
+      snprintf(auth_header, sizeof(auth_header), "Proxy-Authorization: Basic %s\r\n", auth_b64);
       free(auth_b64);
     }
   }
@@ -158,19 +153,16 @@ static bool handshake_http_proxy(int fd, const char *target_host,
                    "CONNECT [%s]:%d HTTP/1.1\r\n"
                    "Host: [%s]:%d\r\n"
                    "%s\r\n",
-                   target_host, target_port, target_host, target_port,
-                   auth_header);
+                   target_host, target_port, target_host, target_port, auth_header);
   } else {
     len = snprintf(req, sizeof(req),
                    "CONNECT %s:%d HTTP/1.1\r\n"
                    "Host: %s:%d\r\n"
                    "%s\r\n",
-                   target_host, target_port, target_host, target_port,
-                   auth_header);
+                   target_host, target_port, target_host, target_port, auth_header);
   }
 
-  if (len < 0 || len >= (int)sizeof(req) ||
-      etos_socket_send_timeout(fd, req, len, 0, timeout_ms) <= 0) {
+  if (len < 0 || len >= (int)sizeof(req) || etos_socket_send_timeout(fd, req, len, 0, timeout_ms) <= 0) {
     return false;
   }
 
@@ -179,8 +171,7 @@ static bool handshake_http_proxy(int fd, const char *target_host,
   bool header_complete = false;
 
   while (resp_len < sizeof(resp) - 1) {
-    ssize_t rc = etos_socket_recv_timeout(
-        fd, resp + resp_len, sizeof(resp) - 1 - resp_len, 0, timeout_ms);
+    ssize_t rc = etos_socket_recv_timeout(fd, resp + resp_len, sizeof(resp) - 1 - resp_len, 0, timeout_ms);
     if (rc <= 0)
       break;
     resp_len += rc;
@@ -196,17 +187,14 @@ static bool handshake_http_proxy(int fd, const char *target_host,
     return false;
   }
 
-  if (strncasecmp(resp, "HTTP/1.0 200", 12) == 0 ||
-      strncasecmp(resp, "HTTP/1.1 200", 12) == 0) {
+  if (strncasecmp(resp, "HTTP/1.0 200", 12) == 0 || strncasecmp(resp, "HTTP/1.1 200", 12) == 0) {
     return true;
   }
 
   return false;
 }
 
-static bool handshake_socks5_proxy(int fd, const char *target_host,
-                                   int target_port, const char *user,
-                                   const char *password, int timeout_ms) {
+static bool handshake_socks5_proxy(int fd, const char *target_host, int target_port, const char *user, const char *password, int timeout_ms) {
   if (!target_host || target_port <= 0 || target_port > 65535) {
     return false;
   }
@@ -244,8 +232,7 @@ static bool handshake_socks5_proxy(int fd, const char *target_host,
     memcpy(&pass_req[pass_len], password, plen);
     pass_len += plen;
 
-    if (etos_socket_send_timeout(fd, (char *)pass_req, pass_len, 0,
-                                 timeout_ms) <= 0) {
+    if (etos_socket_send_timeout(fd, (char *)pass_req, pass_len, 0, timeout_ms) <= 0) {
       return false;
     }
 
@@ -363,8 +350,7 @@ u_int32_t etos_stats_get_rtt(const FdTrafficStats *stats) {
   return atomic_load(&stats->rtt_us);
 }
 
-int etos_socket_set_keepalive(int fd, bool enable, int idle_sec,
-                              int interval_sec, int count) {
+int etos_socket_set_keepalive(int fd, bool enable, int idle_sec, int interval_sec, int count) {
   int optval = enable ? 1 : 0;
   if (setsockopt(fd, SOL_SOCKET, SO_KEEPALIVE, &optval, sizeof(optval)) < 0) {
     return -1;
@@ -375,8 +361,7 @@ int etos_socket_set_keepalive(int fd, bool enable, int idle_sec,
       setsockopt(fd, IPPROTO_TCP, TCP_KEEPALIVE, &idle_sec, sizeof(idle_sec));
     }
     if (interval_sec > 0) {
-      setsockopt(fd, IPPROTO_TCP, TCP_KEEPINTVL, &interval_sec,
-                 sizeof(interval_sec));
+      setsockopt(fd, IPPROTO_TCP, TCP_KEEPINTVL, &interval_sec, sizeof(interval_sec));
     }
     if (count > 0) {
       setsockopt(fd, IPPROTO_TCP, TCP_KEEPCNT, &count, sizeof(count));
@@ -415,8 +400,7 @@ int etos_socket_connect(const char *host, int port, int timeout_ms) {
 
   struct in6_addr dummy_v6;
   struct in_addr dummy_v4;
-  if (inet_pton(AF_INET6, clean_host, &dummy_v6) == 1 ||
-      inet_pton(AF_INET, clean_host, &dummy_v4) == 1) {
+  if (inet_pton(AF_INET6, clean_host, &dummy_v6) == 1 || inet_pton(AF_INET, clean_host, &dummy_v4) == 1) {
     hints.ai_flags |= AI_NUMERICHOST;
   }
 
@@ -452,10 +436,7 @@ int etos_socket_connect(const char *host, int port, int timeout_ms) {
   return fd;
 }
 
-int etos_socket_connect_proxy(int type, const char *proxy_host, int proxy_port,
-                              int timeout_ms, const char *target_host,
-                              int target_port, const char *user,
-                              const char *password) {
+int etos_socket_connect_proxy(int type, const char *proxy_host, int proxy_port, int timeout_ms, const char *target_host, int target_port, const char *user, const char *password) {
   if (type == ETOS_PROXY_NONE) {
     return etos_socket_connect(target_host, target_port, timeout_ms);
   }
@@ -466,11 +447,9 @@ int etos_socket_connect_proxy(int type, const char *proxy_host, int proxy_port,
 
   bool ok = false;
   if (type == ETOS_PROXY_HTTP) {
-    ok = handshake_http_proxy(fd, target_host, target_port, user, password,
-                              timeout_ms);
+    ok = handshake_http_proxy(fd, target_host, target_port, user, password, timeout_ms);
   } else if (type == ETOS_PROXY_SOCKS5) {
-    ok = handshake_socks5_proxy(fd, target_host, target_port, user, password,
-                                timeout_ms);
+    ok = handshake_socks5_proxy(fd, target_host, target_port, user, password, timeout_ms);
   }
 
   if (!ok) {
@@ -482,8 +461,7 @@ int etos_socket_connect_proxy(int type, const char *proxy_host, int proxy_port,
 }
 
 /* 全量 poll 姿势实现发送超时 */
-ssize_t etos_socket_send_timeout(int fd, const char *buf, size_t len, int flags,
-                                 int timeout_ms) {
+ssize_t etos_socket_send_timeout(int fd, const char *buf, size_t len, int flags, int timeout_ms) {
   if (timeout_ms > 0) {
     struct pollfd pfd;
     pfd.fd = fd;
@@ -498,8 +476,7 @@ ssize_t etos_socket_send_timeout(int fd, const char *buf, size_t len, int flags,
 }
 
 /* 全量 poll 姿势实现接收超时 */
-ssize_t etos_socket_recv_timeout(int fd, char *buf, size_t len, int flags,
-                                 int timeout_ms) {
+ssize_t etos_socket_recv_timeout(int fd, char *buf, size_t len, int flags, int timeout_ms) {
   if (timeout_ms > 0) {
     struct pollfd pfd;
     pfd.fd = fd;
@@ -513,13 +490,9 @@ ssize_t etos_socket_recv_timeout(int fd, char *buf, size_t len, int flags,
   return etos_socket_recv(fd, buf, len, flags);
 }
 
-ssize_t etos_socket_send(int fd, const char *buf, size_t len, int flags) {
-  return send(fd, buf, len, flags);
-}
+ssize_t etos_socket_send(int fd, const char *buf, size_t len, int flags) { return send(fd, buf, len, flags); }
 
-ssize_t etos_socket_recv(int fd, char *buf, size_t len, int flags) {
-  return recv(fd, buf, len, flags);
-}
+ssize_t etos_socket_recv(int fd, char *buf, size_t len, int flags) { return recv(fd, buf, len, flags); }
 
 ssize_t libssh2_recv(int sock, void *buffer, size_t length, int flags) {
   ssize_t rc = recv(sock, buffer, length, flags);
@@ -604,8 +577,7 @@ int etos_socket_last_error(void) { return errno; }
 
 const char *etos_socket_strerror(int errnum) { return strerror(errnum); }
 
-int etos_socket_get_peer_info(int fd, char *ip_buf, size_t ip_buf_len,
-                              int *port) {
+int etos_socket_get_peer_info(int fd, char *ip_buf, size_t ip_buf_len, int *port) {
   if (fd < 0 || !ip_buf || ip_buf_len == 0 || !port) {
     return -1;
   }
@@ -620,8 +592,7 @@ int etos_socket_get_peer_info(int fd, char *ip_buf, size_t ip_buf_len,
   return extract_sockaddr_info(&addr, ip_buf, ip_buf_len, port);
 }
 
-int etos_socket_get_local_info(int fd, char *ip_buf, size_t ip_buf_len,
-                               int *port) {
+int etos_socket_get_local_info(int fd, char *ip_buf, size_t ip_buf_len, int *port) {
   if (fd < 0 || !ip_buf || ip_buf_len == 0 || !port) {
     return -1;
   }
