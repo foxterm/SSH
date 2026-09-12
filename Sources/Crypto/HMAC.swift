@@ -7,41 +7,50 @@ import Foundation
 import OpenSSL
 
 public extension Crypto {
-    /// Generates an HMAC (Hash-based Message Authentication Code) for a given message using the specified key and algorithm.
+    /// 使用指定的密钥和算法计算字符串的 HMAC（基于哈希的消息认证码）。
     ///
     /// - Parameters:
-    ///   - message: The input message to be hashed.
-    ///   - key: The secret key used for hashing.
-    ///   - algorithm: The SHA algorithm to be used for hashing (e.g., SHA-1, SHA-256).
-    /// - Returns: The generated HMAC as a `Data` object.
+    ///   - message: 需要计算 HMAC 的输入字符串。
+    ///   - key: 用于哈希计算的密钥字符串。
+    ///   - algorithm: 使用的 SHA 哈希算法类型（如 SHA-1、SHA-256）。
+    /// - Returns: 计算得到的 HMAC 结果数据（`Data` 对象）。
     func hmac(_ message: String, key: String, algorithm: ShaAlgorithm) -> Data {
-        hmac(message.bytes, message_len: message.count, key: key.bytes, key_len: key.count.int32, algorithm: algorithm)
+        // 使用 UTF-8 编码将字符串转换为 Data，防止中文字符或 Emoji 导致字符数与字节数不一致
+        guard let messageData = message.data(using: .utf8),
+              let keyData = key.data(using: .utf8)
+        else {
+            return Data()
+        }
+        return hmac(messageData, key: keyData, algorithm: algorithm)
     }
 
-    /// Generates an HMAC (Hash-based Message Authentication Code) for the given message using the specified key and algorithm.
+    /// 使用指定的密钥和算法计算二进制 Data 的 HMAC。
     ///
     /// - Parameters:
-    ///   - message: The input data for which the HMAC is to be generated.
-    ///   - key: The secret key used for the HMAC generation.
-    ///   - algorithm: The hashing algorithm to be used (e.g., SHA-1, SHA-256).
-    /// - Returns: The generated HMAC as a `Data` object.
+    ///   - message: 需要计算 HMAC 的输入二进制数据。
+    ///   - key: 用于哈希计算的密钥二进制数据。
+    ///   - algorithm: 使用的 SHA 哈希算法类型。
+    /// - Returns: 计算得到的 HMAC 结果数据（`Data` 对象）。
     func hmac(_ message: Data, key: Data, algorithm: ShaAlgorithm) -> Data {
+        // 获取消息和密钥的内存指针与字节长度，并传给底层指针重载函数
         message.withCPointer { mPtr, mCount in
             key.withCPointer { kPtr, kCount in
-                hmac(mPtr, message_len: mCount, key: kPtr, key_len: kCount.int32, algorithm: algorithm)
+                hmac(mPtr, message_len: mCount, key: kPtr, key_len: Int32(kCount), algorithm: algorithm)
             }
         }
     }
 
-    /// Computes the HMAC (Hash-based Message Authentication Code) for a given message using the specified algorithm.
+    /// 根据指定的指针和长度计算 HMAC。
     ///
     /// - Parameters:
-    ///   - message: A pointer to the message data.
-    ///   - message_len: The length of the message data.
-    ///   - key: A pointer to the key data.
-    ///   - key_len: The length of the key data.
-    ///   - algorithm: The SHA algorithm to use for HMAC computation.
-    /// - Returns: A `Data` object containing the computed HMAC.
+    ///   - message: 指向待计算消息数据的内存指针。
+    ///   - message_len: 消息数据的字节长度。
+    ///   - key: 指向密钥数据的内存指针。
+    ///   - key_len: 密钥数据的字节长度（Int32 类型以适配 OpenSSL API）。
+    ///   - algorithm: 使用的 SHA 哈希算法类型。
+    /// - Returns: 包含计算结果 HMAC 的 `Data` 对象。
+    ///
+    /// 本函数直接调用 OpenSSL 的 `HMAC()` 一步式 API 完成计算并导出字节数据。
     func hmac(
         _ message: UnsafeRawPointer?,
         message_len: Int,
@@ -52,7 +61,10 @@ public extension Crypto {
         let evp = algorithm.EVP
         let digest = algorithm.digest
         let buf: BufferData<Int8, UInt32> = .init(digest)
+
+        // 调用 OpenSSL C API 计算 HMAC
         HMAC(evp, key, key_len, message, message_len, buf.buf.buffer, buf.len.buffer)
+
         return buf.data(count: digest)
     }
 }

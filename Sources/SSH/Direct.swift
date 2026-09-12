@@ -61,7 +61,7 @@ extension Direct {
 
         // 异步向 libssh2 请求建立直接 TCP/IP 转发通道
         channel.rawChannel = await channel.ssh.callSSH2 { [self] in
-            libssh2_channel_direct_tcpip_ex(rawSession, host, port.int32, shost, sport.int32)
+            libssh2_channel_direct_tcpip_ex(rawSession, host.bytesArray, port.int32, shost.bytesArray, sport.int32)
         }
 
         guard rawChannel != nil else {
@@ -94,7 +94,7 @@ extension Direct {
 
         // 异步向 libssh2 请求建立 Unix Domain Socket 转发通道
         channel.rawChannel = await channel.ssh.callSSH2 { [self] in
-            libssh2_channel_direct_streamlocal_ex(rawSession, socketPath, shost, sport.int32)
+            libssh2_channel_direct_streamlocal_ex(rawSession, socketPath.bytesArray, shost.bytesArray, sport.int32)
         }
 
         guard rawChannel != nil else {

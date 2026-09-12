@@ -160,7 +160,7 @@ public extension SCP {
 
         var fileinfo = libssh2_struct_stat()
         channel.rawChannel = await channel.ssh.callSSH2 { [self] in
-            libssh2_scp_recv2(rawSession, remotePath, &fileinfo)
+            libssh2_scp_recv2(rawSession, remotePath.bytesArray, &fileinfo)
         }
         guard let rawChannel = channel.rawChannel else { return false }
         libssh2_channel_set_blocking(rawChannel, 0)
@@ -203,7 +203,7 @@ public extension SCP {
         }
         var fileinfo = libssh2_struct_stat()
         channel.rawChannel = await channel.ssh.callSSH2 { [self] in
-            libssh2_scp_recv2(rawSession, filename, &fileinfo)
+            libssh2_scp_recv2(rawSession, filename.bytesArray, &fileinfo)
         }
         guard rawChannel != nil else {
             return nil

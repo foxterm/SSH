@@ -17,7 +17,7 @@ public extension SSH {
         }
         // 调用 libssh2 获取逗号分隔的认证方式字符串
         let ptr = await callSSH2 {
-            libssh2_userauth_list(self.rawSession, user, user.count.uint32)
+            libssh2_userauth_list(self.rawSession, user.bytesArray, user.count.uint32)
         }
         guard let ptr else {
             return []
@@ -70,7 +70,7 @@ public extension SSH {
         // 执行密码认证
         let code = await callSSH2 {
             libssh2_userauth_password_ex(
-                self.rawSession, user, user.count.uint32, password, password.count.uint32, nil
+                self.rawSession, user.bytesArray, user.count.uint32, password.bytesArray, password.count.uint32, nil
             )
         }
 
@@ -101,8 +101,8 @@ public extension SSH {
         // 调用基于内存的密钥认证接口
         let code = await callSSH2 {
             libssh2_userauth_publickey_frommemory(
-                self.rawSession, user, user.count, publickey, publickey.count, privateKey,
-                privateKey.count, passphrase
+                self.rawSession, user.bytesArray, user.count, publickey.bytesArray, publickey.count, privateKey.bytesArray,
+                privateKey.count, passphrase.bytesArray
             )
         }
         return code == LIBSSH2_ERROR_NONE && isAuthenticated
@@ -131,7 +131,7 @@ public extension SSH {
         // 调用基于本地文件路径的密钥认证接口
         let code = await callSSH2 {
             libssh2_userauth_publickey_fromfile_ex(
-                self.rawSession, user, user.count.uint32, publickeyFile, privateKeyFile, passphrase
+                self.rawSession, user.bytesArray, user.count.uint32, publickeyFile.bytesArray, privateKeyFile.bytesArray, passphrase.bytesArray
             )
         }
         return code == LIBSSH2_ERROR_NONE && isAuthenticated
@@ -162,7 +162,7 @@ public extension SSH {
 
         // 核心：处理 SSH 键盘交互式认证的回调逻辑
         let code = await callSSH2 {
-            libssh2_userauth_keyboard_interactive_ex(self.rawSession, user, user.count.uint32) {
+            libssh2_userauth_keyboard_interactive_ex(self.rawSession, user.bytesArray, user.count.uint32) {
                 _, _, _, _, numPrompts, prompts, responses, abstract in
                 // 从 abstract 指针中取回关联的 SSH 实例
                 guard let ssh = abstract?.address.ssh else { return }

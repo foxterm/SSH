@@ -34,7 +34,7 @@ public extension Channel {
     func newSession() async -> Bool {
         closeChannel()
         rawChannel = await ssh.callSSH2 { [self] in
-            libssh2_channel_open_ex(rawSession, "session", 7, 0x200000, 0x8000, nil, 0)
+            libssh2_channel_open_ex(rawSession, "session".bytesArray, 7, 0x200000, 0x8000, nil, 0)
         }
         return rawChannel != nil
     }
@@ -82,7 +82,7 @@ public extension Channel {
 
         let startupCode = await ssh.callSSH2 { [self] in
             libssh2_channel_process_startup(
-                rawChannel, "exec", 4, command, command.count.uint32
+                rawChannel, "exec".bytesArray, 4, command.bytesArray, command.count.uint32
             )
         }
 

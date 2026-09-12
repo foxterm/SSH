@@ -63,6 +63,7 @@ let package = Package(
         .target(
             name: "libetos",
             dependencies: [
+                .product(name: "OpenSSL", package: "OpenSSL"),
             ]
         ),
         .target(

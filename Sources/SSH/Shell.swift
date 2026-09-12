@@ -16,6 +16,8 @@ public class Shell {
     private var readOutputStream: OutputStream?
     private var errorOutputStream: OutputStream?
 
+    var termEnv: [String: String] = [:]
+
     /// 关联的底层通信渠道
     let channel: Channel
 
@@ -51,10 +53,18 @@ public extension Shell {
         // 设置渠道为非阻塞模式，以便进行轮询
         libssh2_channel_set_blocking(rawChannel, 0)
 
+        for (key, value) in termEnv {
+            await channel.ssh.callSSH2 { [self] in
+                libssh2_channel_setenv_ex(
+                    rawChannel, key.bytesArray, key.count.uint32, value.bytesArray, value.count.uint32
+                )
+            }
+        }
+
         // 1. 请求伪终端 (PTY)
         var code = await channel.ssh.callSSH2 { [self] in
             libssh2_channel_request_pty_ex(
-                rawChannel, term, term.count.uint32, nil, 0, width.int32, height.int32,
+                rawChannel, term.bytesArray, term.count.uint32, nil, 0, width.int32, height.int32,
                 LIBSSH2_TERM_WIDTH_PX, LIBSSH2_TERM_HEIGHT_PX
             )
         }
@@ -65,7 +75,7 @@ public extension Shell {
 
         // 2. 启动 Shell 进程
         code = await channel.ssh.callSSH2 { [self] in
-            libssh2_channel_process_startup(rawChannel, "shell", 5, nil, 0)
+            libssh2_channel_process_startup(rawChannel, "shell".bytesArray, 5, nil, 0)
         }
         guard code == LIBSSH2_ERROR_NONE else {
             freeShell()
@@ -91,14 +101,8 @@ public extension Shell {
     }
 
     /// 设置环境变量
-    func setEnv(name: String, value: String) async -> Bool {
-        guard rawChannel != nil else { return false }
-        let code = await channel.ssh.callSSH2 { [self] in
-            libssh2_channel_setenv_ex(
-                rawChannel, name, name.count.uint32, value, value.count.uint32
-            )
-        }
-        return code == LIBSSH2_ERROR_NONE
+    func setEnv(name: String, value: String) {
+        termEnv[name] = value
     }
 
     /// 向 Shell 写入二进制数据

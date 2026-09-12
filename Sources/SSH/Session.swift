@@ -47,14 +47,14 @@ public extension SSH {
         libssh2_session_flag(rawSession, LIBSSH2_FLAG_COMPRESS, compress ? 1 : 0)
         libssh2_session_flag(rawSession, LIBSSH2_FLAG_QUOTE_PATHS, 1)
         libssh2_session_set_timeout(rawSession, timeout * 1000)
-        libssh2_session_banner_set(rawSession, clientbanner)
+        libssh2_session_banner_set(rawSession, clientbanner.bytesArray)
 
         var keyAlgorithms = hostKeyAlgorithms
         if keyAlgorithms.isEmpty {
             let key = Self.getHostKeyAlgorithms(session: rawSession)
             keyAlgorithms = (key.supported + key.insecure).joined(separator: ",")
         }
-        libssh2_session_method_pref(rawSession, LIBSSH2_METHOD_HOSTKEY, keyAlgorithms)
+        libssh2_session_method_pref(rawSession, LIBSSH2_METHOD_HOSTKEY, keyAlgorithms.bytesArray)
 
         // 执行底层握手
         let rec = await callSSH2 { [self] in
@@ -289,7 +289,7 @@ public extension SSH {
 
             // 切换回阻塞模式以确保优雅退出
             sessionBlocking = true
-            libssh2_session_disconnect_ex(rawSession, SSH_DISCONNECT_BY_APPLICATION, "Bye-Bye", "")
+            libssh2_session_disconnect_ex(rawSession, SSH_DISCONNECT_BY_APPLICATION, "Bye-Bye".bytesArray, "".bytesArray)
             shutdown(.w)
             libssh2_session_free(rawSession)
             // 通知外部代理处理连接中断逻辑
