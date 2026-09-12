@@ -8,6 +8,7 @@
 #include <openssl/bio.h>
 #include <openssl/buffer.h>
 #include <openssl/evp.h>
+#include <poll.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -67,22 +68,18 @@ static int connect_with_timeout(int fd, const struct sockaddr *addr,
     return 0;
   }
 
-  fd_set wset, eset;
-  FD_ZERO(&wset);
-  FD_ZERO(&eset);
-  FD_SET(fd, &wset);
-  FD_SET(fd, &eset);
+  struct pollfd pfd;
+  pfd.fd = fd;
+  pfd.events = POLLOUT | POLLIN;
+  pfd.revents = 0;
 
-  struct timeval tv;
-  tv.tv_sec = timeout_ms / 1000;
-  tv.tv_usec = (timeout_ms % 1000) * 1000;
-
-  ret = select(fd + 1, NULL, &wset, &eset, &tv);
-  if (ret <= 0) {
+  ret = poll(&pfd, 1, timeout_ms);
+  if (ret <= 0) { // 超时 (0) 或 poll 出错 (-1)
     etos_socket_set_blocking(fd, true);
     return -1;
   }
 
+  // 只要触发了事件，必须统一通过 getsockopt(SO_ERROR) 校验套接字真实状态
   int error = 0;
   socklen_t len = sizeof(error);
   if (getsockopt(fd, SOL_SOCKET, SO_ERROR, &error, &len) < 0 || error != 0) {
@@ -429,6 +426,11 @@ int etos_socket_connect(const char *host, int port, int timeout_ms) {
   memset(&hints, 0, sizeof(hints));
   hints.ai_family = AF_UNSPEC; // 自动支持 IPv4 和 IPv6
   hints.ai_socktype = SOCK_STREAM;
+  hints.ai_flags = AI_ADDRCONFIG;
+
+  /* 注意：如果本地 IPv6 网络配置不完整，AI_ADDRCONFIG 会直接过滤掉 IPv6 节点。
+     如果强制连接纯 IPv6 地址/域名，建议先注释或移除 AI_ADDRCONFIG */
+  // hints.ai_flags = AI_ADDRCONFIG;
 
   if (getaddrinfo(host, port_str, &hints, &res) != 0) {
     return ETOS_INVALID_SOCKET;
@@ -451,9 +453,18 @@ int etos_socket_connect(const char *host, int port, int timeout_ms) {
     fd = ETOS_INVALID_SOCKET; // 尝试下一个解析出的 IP 地址
   }
 
-  freeaddrinfo(res);
-  etos_socket_set_nodelay(fd, true);
-  etos_socket_set_keepalive(fd, true, 5, 5, 10);
+  // 释放 getaddrinfo 分配的链表
+  if (res) {
+    freeaddrinfo(res);
+  }
+
+  // 【核心修复】只有在连接成功 (fd != ETOS_INVALID_SOCKET) 时，才设置 socket
+  // 选项！
+  if (fd != ETOS_INVALID_SOCKET) {
+    etos_socket_set_nodelay(fd, true);
+    etos_socket_set_keepalive(fd, true, 5, 5, 10);
+  }
+
   return fd;
 }
 
