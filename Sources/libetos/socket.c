@@ -428,10 +428,6 @@ int etos_socket_connect(const char *host, int port, int timeout_ms) {
   hints.ai_socktype = SOCK_STREAM;
   hints.ai_flags = AI_ADDRCONFIG;
 
-  /* 注意：如果本地 IPv6 网络配置不完整，AI_ADDRCONFIG 会直接过滤掉 IPv6 节点。
-     如果强制连接纯 IPv6 地址/域名，建议先注释或移除 AI_ADDRCONFIG */
-  // hints.ai_flags = AI_ADDRCONFIG;
-
   if (getaddrinfo(host, port_str, &hints, &res) != 0) {
     return ETOS_INVALID_SOCKET;
   }
