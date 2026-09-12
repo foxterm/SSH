@@ -229,14 +229,11 @@ public extension SSH {
 //    }
 
     /// 读取远程文件的完整内容
-    func readFile(_ filename: String) async -> String? {
+    func readFile(_ filename: String) async -> Data? {
         guard let data = await scp.download(remotePath: filename) else {
             return nil
         }
-        guard let text = data.string else {
-            return nil
-        }
-        return text
+        return data
     }
 
     // MARK: - 功能组件访问器
