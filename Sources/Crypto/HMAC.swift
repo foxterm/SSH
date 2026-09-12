@@ -15,13 +15,11 @@ public extension Crypto {
     ///   - algorithm: 使用的 SHA 哈希算法类型（如 SHA-1、SHA-256）。
     /// - Returns: 计算得到的 HMAC 结果数据（`Data` 对象）。
     func hmac(_ message: String, key: String, algorithm: ShaAlgorithm) -> Data {
-        // 使用 UTF-8 编码将字符串转换为 Data，防止中文字符或 Emoji 导致字符数与字节数不一致
-        guard let messageData = message.data(using: .utf8),
-              let keyData = key.data(using: .utf8)
-        else {
-            return Data()
+        message.withCPointer { mPtr, mCount in
+            key.withCPointer { kPtr, kCount in
+                hmac(mPtr, message_len: mCount, key: kPtr, key_len: kCount.int32, algorithm: algorithm)
+            }
         }
-        return hmac(messageData, key: keyData, algorithm: algorithm)
     }
 
     /// 使用指定的密钥和算法计算二进制 Data 的 HMAC。
@@ -35,7 +33,7 @@ public extension Crypto {
         // 获取消息和密钥的内存指针与字节长度，并传给底层指针重载函数
         message.withCPointer { mPtr, mCount in
             key.withCPointer { kPtr, kCount in
-                hmac(mPtr, message_len: mCount, key: kPtr, key_len: Int32(kCount), algorithm: algorithm)
+                hmac(mPtr, message_len: mCount, key: kPtr, key_len: kCount.int32, algorithm: algorithm)
             }
         }
     }
