@@ -107,15 +107,14 @@ public extension SSH {
     /// 当前 Socket 的网络流量统计
     /// - Returns: 元组 (send: 已发送字节数, recv: 已接收字节数)
     var trafficStats: (send: UInt64, recv: UInt64) {
-        // 无效的文件描述符直接返回 0 流量
         guard fd >= 0 else { return (0, 0) }
         var stats = FdTrafficStats()
-        // 从 libetos 获取当前句柄的流量数据
         guard etos_socket_get_traffic_stats(fd, &stats) == 0 else {
             return (0, 0)
         }
-        // 解析并返回发送 (TX) 与接收 (RX) 的字节总量
-        return (etos_stats_get_tx(&stats), etos_stats_get_rx(&stats))
+        let tx = etos_stats_get_tx(&stats)
+        let rx = etos_stats_get_rx(&stats)
+        return (tx, rx)
     }
 
     /// 检查底层 Socket 是否处于已连接状态
