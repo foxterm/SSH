@@ -60,7 +60,7 @@ public extension Net {
         hints.ai_protocol = IPPROTO_TCP
 
         var addrInfo: UnsafeMutablePointer<Darwin.addrinfo>?
-        let result = Darwin.getaddrinfo(host, port, &hints, &addrInfo)
+        let result = Darwin.getaddrinfo(host.bytesArray, port?.bytesArray, &hints, &addrInfo)
         guard result == 0, addrInfo != nil else {
             return
         }
