@@ -2,7 +2,8 @@
 // Copyright (c) 2025-2026 foxterm.app
 // Created by foxterm@foxmail.com
 
-import Foundationimport OpenSSL
+import Foundation
+import OpenSSL
 
 public final class Crypto: Sendable {
     public static let shared: Crypto = .init()
