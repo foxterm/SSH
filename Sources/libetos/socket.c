@@ -494,46 +494,6 @@ ssize_t etos_socket_send(int fd, const char *buf, size_t len, int flags) { retur
 
 ssize_t etos_socket_recv(int fd, char *buf, size_t len, int flags) { return recv(fd, buf, len, flags); }
 
-ssize_t libssh2_recv(int sock, void *buffer, size_t length, int flags) {
-  ssize_t rc = recv(sock, buffer, length, flags);
-  if (rc < 0) {
-    int err;
-#ifdef _WIN32
-    err = _libssh2_wsa2errno();
-#else
-    err = errno;
-#endif
-    if (err == EINTR || err == ENOENT)
-      return -EAGAIN;
-#ifdef EWOULDBLOCK
-    if (err == EWOULDBLOCK)
-      return -EAGAIN;
-#endif
-    return -err;
-  }
-  return rc;
-}
-
-ssize_t libssh2_send(int sock, const void *buffer, size_t length, int flags) {
-  ssize_t rc = send(sock, buffer, length, flags);
-  if (rc < 0) {
-    int err;
-#ifdef _WIN32
-    err = _libssh2_wsa2errno();
-#else
-    err = errno;
-#endif
-    if (err == EINTR)
-      return -EAGAIN;
-#ifdef EWOULDBLOCK
-    if (err == EWOULDBLOCK)
-      return -EAGAIN;
-#endif
-    return -err;
-  }
-  return rc;
-}
-
 int etos_socket_shutdown(int fd, int how) { return shutdown(fd, how); }
 
 void etos_socket_close(int fd) {
