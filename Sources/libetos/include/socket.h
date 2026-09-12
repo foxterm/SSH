@@ -22,6 +22,7 @@ extern "C" {
 typedef struct {
   _Atomic u_int64_t rx_bytes; /* 接收总字节数 */
   _Atomic u_int64_t tx_bytes; /* 发送总字节数 */
+  _Atomic u_int32_t rtt_us;    /* 当前实时往返时间（微秒，瞬时值） */
 } FdTrafficStats;
 
 /* ------------------------------------------------------------
@@ -50,7 +51,13 @@ u_int64_t etos_stats_get_rx(const FdTrafficStats *stats);
  * @note 该函数仅用于获取最新的统计信息，不会重置计数器。
  */
 u_int64_t etos_stats_get_tx(const FdTrafficStats *stats);
-
+/**
+ * 获取 RTT（Round Trip Time）
+ * @param stats 指向 FdTrafficStats 结构体的指针
+ * @return 成功返回 RTT 值（毫秒），失败返回 -1
+ * @note 该函数仅用于获取最新的统计信息，不会重置计
+ */
+u_int32_t etos_stats_get_rtt(const FdTrafficStats *stats);
 /**
  * 创建 TCP 连接（支持 IPv4/IPv6 自动解析）
  * @param host 目标主机 IP 或域名
