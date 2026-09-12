@@ -15,9 +15,9 @@ public extension Crypto {
     ///   - algorithm: 使用的 SHA 哈希算法类型。
     /// - Returns: 计算得到的哈希结果数据（`Data` 对象）。
     func sha(_ message: String, algorithm: ShaAlgorithm) -> Data {
-        // 使用 UTF-8 编码转化为 Data 处理，防止多字节字符（如中文、Emoji）导致 message.count 计算字节长度不准确
-        guard let data = message.data(using: .utf8) else { return Data() }
-        return sha(data, algorithm: algorithm)
+        message.withCPointer { mPtr, mCount in
+            sha(mPtr, message_len: mCount, algorithm: algorithm)
+        }
     }
 
     /// 计算指定二进制数据的 SHA 哈希值。
@@ -69,7 +69,7 @@ public extension Crypto {
     func sha(file: String, algorithm: ShaAlgorithm) async -> Data? {
         await Call.shared.callback {
             // 以二进制只读模式打开文件
-            guard let fp = Darwin.fopen(file, "rb") else {
+            guard let fp = Darwin.fopen(file.bytesArray, "rb") else {
                 return nil
             }
             // 保证作用域结束时自动关闭文件句柄
