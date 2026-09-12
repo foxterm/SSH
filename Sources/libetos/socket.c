@@ -314,42 +314,6 @@ static bool handshake_socks5_proxy(int fd, const char *target_host, int target_p
 /* ------------------------------------------------------------
    外部接口实现
    ------------------------------------------------------------ */
-int etos_socket_get_traffic_stats(int fd, FdTrafficStats *stats) {
-  if (fd < 0 || !stats) {
-    return -1;
-  }
-
-  struct tcp_connection_info info;
-  socklen_t len = sizeof(info);
-
-  if (getsockopt(fd, IPPROTO_TCP, TCP_CONNECTION_INFO, &info, &len) == 0) {
-    atomic_store(&stats->rx_bytes, info.tcpi_rxbytes);
-    atomic_store(&stats->tx_bytes, info.tcpi_txbytes);
-    atomic_store(&stats->rtt_us, info.tcpi_rttcur);
-    return 0;
-  }
-
-  return -1;
-}
-
-u_int64_t etos_stats_get_rx(const FdTrafficStats *stats) {
-  if (!stats)
-    return 0;
-  return atomic_load(&stats->rx_bytes);
-}
-
-u_int64_t etos_stats_get_tx(const FdTrafficStats *stats) {
-  if (!stats)
-    return 0;
-  return atomic_load(&stats->tx_bytes);
-}
-
-u_int32_t etos_stats_get_rtt(const FdTrafficStats *stats) {
-  if (!stats)
-    return 0;
-  return atomic_load(&stats->rtt_us);
-}
-
 int etos_socket_set_keepalive(int fd, bool enable, int idle_sec, int interval_sec, int count) {
   int optval = enable ? 1 : 0;
   if (setsockopt(fd, SOL_SOCKET, SO_KEEPALIVE, &optval, sizeof(optval)) < 0) {
@@ -565,4 +529,40 @@ int etos_socket_get_local_info(int fd, char *ip_buf, size_t ip_buf_len, int *por
   }
 
   return extract_sockaddr_info(&addr, ip_buf, ip_buf_len, port);
+}
+
+int etos_socket_get_traffic_stats(int fd, FdTrafficStats *stats) {
+  if (fd < 0 || !stats) {
+    return -1;
+  }
+
+  struct tcp_connection_info info;
+  socklen_t len = sizeof(info);
+
+  if (getsockopt(fd, IPPROTO_TCP, TCP_CONNECTION_INFO, &info, &len) == 0) {
+    atomic_store(&stats->rx_bytes, info.tcpi_rxbytes);
+    atomic_store(&stats->tx_bytes, info.tcpi_txbytes);
+    atomic_store(&stats->rtt_us, info.tcpi_rttcur);
+    return 0;
+  }
+
+  return -1;
+}
+
+u_int64_t etos_stats_get_rx(const FdTrafficStats *stats) {
+  if (!stats)
+    return 0;
+  return atomic_load(&stats->rx_bytes);
+}
+
+u_int64_t etos_stats_get_tx(const FdTrafficStats *stats) {
+  if (!stats)
+    return 0;
+  return atomic_load(&stats->tx_bytes);
+}
+
+u_int32_t etos_stats_get_rtt(const FdTrafficStats *stats) {
+  if (!stats)
+    return 0;
+  return atomic_load(&stats->rtt_us);
 }
