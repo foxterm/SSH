@@ -42,23 +42,23 @@ public extension SSH {
 
     /// 获取当前连接的远程地址
     var remoteAddr: (host: String, port: Int)? {
-        var ipBuffer = [CChar](repeating: 0, count: 64)
+        let buffer = Buffer<CChar>(64)
         var port: Int32 = 0
-        guard etos_socket_get_peer_info(fd, &ipBuffer, ipBuffer.count, &port) == 0 else {
+        guard etos_socket_get_peer_info(fd, buffer.buffer, buffer.count, &port) == 0 else {
             return nil
         }
-        let host = ipBuffer.string
+        let host = buffer.buffer.string
         return (host,port.int)
     }
 
     /// 获取当前连接的本地地址
     var localAddr: (host: String, port: Int)? {
-        var ipBuffer = [CChar](repeating: 0, count: 64)
+        let buffer = Buffer<CChar>(64)
         var port: Int32 = 0
-        guard etos_socket_get_local_info(fd, &ipBuffer, ipBuffer.count, &port) == 0 else {
+        guard etos_socket_get_local_info(fd, buffer.buffer, buffer.count, &port) == 0 else {
             return nil
         }
-        let host = ipBuffer.string
+        let host = buffer.buffer.string
         return (host,port.int)
     }
 
