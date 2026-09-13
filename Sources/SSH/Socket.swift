@@ -40,43 +40,26 @@ public extension SSH {
         return true
     }
 
-    /// 获取当前连接的远程地址（IP:Port）
-    var remoteAddr: String? {
+    /// 获取当前连接的远程IP
+    var remoteAddr: (host: String, port: Int)? {
         var ipBuffer = [CChar](repeating: 0, count: 64)
         var port: Int32 = 0
-
-        // 调用 libetos 获取对端地址信息，失败则返回 nil
         guard etos_socket_get_peer_info(fd, &ipBuffer, ipBuffer.count, &port) == 0 else {
             return nil
         }
         let host = ipBuffer.string
-        // 拼接主机名与端口号
-        return Net.joinHostPort(host: host, port: port.int)
-    }
-    /// 获取当前连接的远程IP
-    var remoteIP: String? {
-        var ipBuffer = [CChar](repeating: 0, count: 64)
-        var port: Int32 = 0
-
-        // 调用 libetos 获取对端地址信息，失败则返回 nil
-        guard etos_socket_get_peer_info(fd, &ipBuffer, ipBuffer.count, &port) == 0 else {
-            return nil
-        }
-        return ipBuffer.string
+        return (host,port.int)
     }
 
     /// 获取当前连接的本地地址（IP:Port）
-    var localAddr: String? {
+    var localAddr: (host: String, port: Int)? {
         var ipBuffer = [CChar](repeating: 0, count: 64)
         var port: Int32 = 0
-
-        // 调用 libetos 获取本地绑定信息，失败则返回 nil
         guard etos_socket_get_local_info(fd, &ipBuffer, ipBuffer.count, &port) == 0 else {
             return nil
         }
         let host = ipBuffer.string
-        // 拼接主机名与端口号
-        return Net.joinHostPort(host: host, port: port.int)
+        return (host,port.int)
     }
 
 //    /// 内部数据发送方法
