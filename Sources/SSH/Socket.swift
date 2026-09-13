@@ -42,7 +42,7 @@ public extension SSH {
 
     /// 获取当前连接的远程地址
     var remoteAddr: (host: String, port: Int)? {
-        let buffer = Buffer<CChar>(64)
+        let buffer = Buffer<CChar>(0x40)
         var port: Int32 = 0
         guard etos_socket_get_peer_info(fd, buffer.buffer, buffer.count, &port) == 0 else {
             return nil
@@ -53,7 +53,7 @@ public extension SSH {
 
     /// 获取当前连接的本地地址
     var localAddr: (host: String, port: Int)? {
-        let buffer = Buffer<CChar>(64)
+        let buffer = Buffer<CChar>(0x40)
         var port: Int32 = 0
         guard etos_socket_get_local_info(fd, buffer.buffer, buffer.count, &port) == 0 else {
             return nil
