@@ -53,6 +53,17 @@ public extension SSH {
         // 拼接主机名与端口号
         return Net.joinHostPort(host: host, port: port.int)
     }
+    /// 获取当前连接的远程IP
+    var remoteIP: String? {
+        var ipBuffer = [CChar](repeating: 0, count: 64)
+        var port: Int32 = 0
+
+        // 调用 libetos 获取对端地址信息，失败则返回 nil
+        guard etos_socket_get_peer_info(fd, &ipBuffer, ipBuffer.count, &port) == 0 else {
+            return nil
+        }
+        return ipBuffer.string
+    }
 
     /// 获取当前连接的本地地址（IP:Port）
     var localAddr: String? {
