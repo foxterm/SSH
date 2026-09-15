@@ -157,8 +157,8 @@ public extension SSH {
             }
         }
 
-        // 执行非阻塞轮询，超时时间设置为 10 毫秒
-        let rc = libssh2_poll(&pollFd, 1, 10)
+        // 执行非阻塞轮询，超时时间设置为 5 毫秒
+        let rc = libssh2_poll(&pollFd, 1, 5)
 
         if rc < 0 {
             // 轮询过程发生错误
