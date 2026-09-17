@@ -361,12 +361,8 @@ int etos_socket_connect(const char *host, int port, int timeout_ms) {
   memset(&hints, 0, sizeof(hints));
   hints.ai_family = AF_UNSPEC;
   hints.ai_socktype = SOCK_STREAM;
-
-  struct in6_addr dummy_v6;
-  struct in_addr dummy_v4;
-  if (inet_pton(AF_INET6, clean_host, &dummy_v6) == 1 || inet_pton(AF_INET, clean_host, &dummy_v4) == 1) {
-    hints.ai_flags |= AI_NUMERICHOST;
-  }
+  hints.ai_flags = AI_ADDRCONFIG | AI_CANONNAME;
+  hints.ai_protocol = IPPROTO_TCP;
 
   if (getaddrinfo(clean_host, port_str, &hints, &res) != 0) {
     return ETOS_INVALID_SOCKET;
@@ -565,4 +561,72 @@ u_int32_t etos_stats_get_rtt(const FdTrafficStats *stats) {
   if (!stats)
     return 0;
   return atomic_load(&stats->rtt_us);
+}
+
+int etos_socket_resolve_all_ips(const char *host, EtosIPAddr *addrs, size_t max_addrs) {
+  if (!host || !addrs || max_addrs == 0) {
+    return -1;
+  }
+
+  // 1. 清洗域名，若包含 '[' 和 ']' 则予以剥离
+  char clean_host[256];
+  size_t host_len = strlen(host);
+  if (host[0] == '[' && host[host_len - 1] == ']' && host_len < sizeof(clean_host) + 2) {
+    strncpy(clean_host, host + 1, host_len - 2);
+    clean_host[host_len - 2] = '\0';
+  } else {
+    strncpy(clean_host, host, sizeof(clean_host) - 1);
+    clean_host[sizeof(clean_host) - 1] = '\0';
+  }
+
+  // 2. 配置 addrinfo 提示结构
+  struct addrinfo hints, *res = NULL, *rp = NULL;
+  memset(&hints, 0, sizeof(hints));
+  hints.ai_family = AF_UNSPEC;     /* 同时获取 IPv4 和 IPv6 */
+  hints.ai_socktype = SOCK_STREAM; /* 仅作为过滤条件，避免 SOCK_DGRAM 等造成重复结果 */
+
+  if (getaddrinfo(clean_host, NULL, &hints, &res) != 0) {
+    return -1;
+  }
+
+  size_t count = 0;
+
+  // 3. 遍历链表提取 IP 并去重
+  for (rp = res; rp != NULL && count < max_addrs; rp = rp->ai_next) {
+    char ip_str[INET6_ADDRSTRLEN] = {0};
+    void *addr_ptr = NULL;
+
+    if (rp->ai_family == AF_INET) {
+      struct sockaddr_in *ipv4 = (struct sockaddr_in *)rp->ai_addr;
+      addr_ptr = &(ipv4->sin_addr);
+    } else if (rp->ai_family == AF_INET6) {
+      struct sockaddr_in6 *ipv6 = (struct sockaddr_in6 *)rp->ai_addr;
+      addr_ptr = &(ipv6->sin6_addr);
+    } else {
+      continue;
+    }
+
+    if (inet_ntop(rp->ai_family, addr_ptr, ip_str, sizeof(ip_str)) == NULL) {
+      continue;
+    }
+
+    // 去重检查 (getaddrinfo 在不同 socktype/protocol 下可能会返回重复的 IP)
+    bool duplicate = false;
+    for (size_t i = 0; i < count; i++) {
+      if (strcmp(addrs[i].ip, ip_str) == 0) {
+        duplicate = true;
+        break;
+      }
+    }
+
+    if (!duplicate) {
+      strncpy(addrs[count].ip, ip_str, sizeof(addrs[count].ip) - 1);
+      addrs[count].ip[sizeof(addrs[count].ip) - 1] = '\0';
+      addrs[count].family = rp->ai_family;
+      count++;
+    }
+  }
+
+  freeaddrinfo(res);
+  return (int)count;
 }
