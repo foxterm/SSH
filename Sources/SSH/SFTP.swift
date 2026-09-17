@@ -410,7 +410,7 @@ public extension SFTP {
         permissions: FilePermissions,
         progress: @escaping (_ send: Int) -> Bool = { _ in true }
     ) async -> Bool {
-        await closeHandle()
+        closeHandle()
         guard rawSFTP != nil else {
             return false
         }
@@ -430,10 +430,10 @@ public extension SFTP {
         }
         // 使用 io.Copy 进行流式传输
         guard await io.Copy(stream, write, ssh.bufferSize, progress) == size.int else {
-            await closeHandle()
+            closeHandle()
             return false
         }
-        await closeHandle()
+        closeHandle()
         return true
     }
 
@@ -481,7 +481,7 @@ public extension SFTP {
         remotePath: String,
         progress: @escaping (_ send: Int, _ size: Int) -> Bool = { _, _ in true }
     ) async -> Bool {
-        await closeHandle()
+        closeHandle()
         guard rawSFTP != nil else {
             return false
         }
@@ -516,10 +516,10 @@ public extension SFTP {
         }
         // 校验下载字节数是否与文件属性大小一致
         guard rc == size else {
-            await closeHandle()
+            closeHandle()
             return false
         }
-        await closeHandle()
+        closeHandle()
         return true
     }
 
