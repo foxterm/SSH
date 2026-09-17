@@ -72,7 +72,7 @@ public extension SSH {
             freeSession()
             return false
         }
-        channelPoll.bufferSize = bufferSize
+        // channelPoll.bufferSize = bufferSize
         return true
     }
 
