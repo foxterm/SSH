@@ -7,6 +7,7 @@ import Extension
 import Foundation
 import libetos
 import Proxy
+import Darwin
 
 public extension SSH {
     /// 发起标准的 TCP 直接连接
@@ -130,49 +131,41 @@ public extension SSH {
     /// 等待套接字就绪（配合 libssh2 的非阻塞 IO 进行事件轮询）
     /// - Returns: 套接字是否正常/可继续操作
     func waitSocket() -> Bool {
-        // 校验 SSH 会话是否存在且套接字处于连接状态
-        guard rawSession != nil, isConnected else {
+        guard rawSession != nil, isConnected, fd >= 0 else {
             return false
         }
 
-        // 获取 libssh2 期望阻塞的方向（读/写）
         let dir = libssh2_session_block_directions(rawSession)
 
-        // 初始化 libssh2 的轮询结构体
-        var pollFd = LIBSSH2_POLLFD()
-        pollFd.type = LIBSSH2_POLLFD_SOCKET.uint8
-        pollFd.fd.socket = fd
-        pollFd.events = 0
-        pollFd.revents = 0
+        var pfd = Darwin.pollfd()
+        pfd.fd = fd
+        pfd.events = 0
+        pfd.revents = 0
 
-        // 根据阻塞方向注册对应的轮询事件（可读/可写）
         if dir == 0 {
-            pollFd.events |= LIBSSH2_POLLFD_POLLIN.uint
+            pfd.events |= POLLIN.int16
         } else {
             if (dir & LIBSSH2_SESSION_BLOCK_INBOUND) != 0 {
-                pollFd.events |= LIBSSH2_POLLFD_POLLIN.uint
+                pfd.events |= POLLIN.int16
             }
             if (dir & LIBSSH2_SESSION_BLOCK_OUTBOUND) != 0 {
-                pollFd.events |= LIBSSH2_POLLFD_POLLOUT.uint
+                pfd.events |= POLLOUT.int16
             }
         }
 
-        // 执行非阻塞轮询，超时时间设置为 5 毫秒
-        let rc = libssh2_poll(&pollFd, 1, 5)
-
+        // 调用 C 标准库 poll，超时时间为 10 毫秒
+        let rc = Darwin.poll(&pfd, 1, 10)
         if rc < 0 {
-            // 轮询过程发生错误
+            // poll 执行出错
             return false
         } else if rc == 0 {
-            // 超时但套接字无异常，可以继续
+            // 超时，套接字暂无数据就绪，返回 true 继续重试
             return true
         }
 
-        // 检查返回的事件中是否包含错误、挂断等异常标志
-        let revents = pollFd.revents.int32
-        if (revents & (LIBSSH2_POLLFD_POLLERR | LIBSSH2_POLLFD_POLLEXT | LIBSSH2_POLLFD_POLLHUP))
-            != 0
-        {
+        // 检查是否有异常标志（错误、挂断、非法 fd）
+        let revents = pfd.revents.int32
+        if (revents & (POLLERR | POLLHUP | POLLNVAL)) != 0 {
             return false
         }
 

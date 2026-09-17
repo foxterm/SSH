@@ -90,7 +90,7 @@ public extension SCP {
         guard let rawSession else { return false }
 
         channel.rawChannel = await channel.ssh.callSSH2 { [self] in
-            libssh2_scp_send64(rawSession, remotePath, mode, size, 0, 0)
+            libssh2_scp_send64(rawSession, remotePath.bytesArray, mode, size, 0, 0)
         }
         guard let rawChannel = channel.rawChannel else { return false }
         libssh2_channel_set_blocking(rawChannel, 0)

@@ -354,7 +354,7 @@ public extension SFTP {
         localPath: String,
         remotePath: String,
         permissions: FilePermissions = .default,
-        progress: @escaping (_ send: Int) -> Bool = { _ in true }
+        progress: @escaping (_ send: Int, _ size: Int64) -> Bool = { _, _ in true }
     ) async -> Bool {
         guard let stream = InputStream(fileAtPath: localPath) else {
             return false
@@ -384,7 +384,7 @@ public extension SFTP {
         data: Data,
         remotePath: String,
         permissions: FilePermissions = .default,
-        progress: @escaping (_ send: Int) -> Bool = { _ in true }
+        progress: @escaping (_ send: Int, _ size: Int64) -> Bool = { _, _ in true }
     ) async -> Bool {
         await upload(
             stream: .init(data: data),
@@ -408,7 +408,7 @@ public extension SFTP {
         size: Int64,
         remotePath: String,
         permissions: FilePermissions,
-        progress: @escaping (_ send: Int) -> Bool = { _ in true }
+        progress: @escaping (_ send: Int, _ size: Int64) -> Bool = { _, _ in true }
     ) async -> Bool {
         closeHandle()
         guard rawSFTP != nil else {
@@ -420,7 +420,7 @@ public extension SFTP {
                 rawSFTP,
                 remotePath.bytesArray,
                 remotePath.count.uint32,
-                UInt(LIBSSH2_FXF_WRITE | LIBSSH2_FXF_CREAT | LIBSSH2_FXF_TRUNC),
+                (LIBSSH2_FXF_WRITE | LIBSSH2_FXF_CREAT | LIBSSH2_FXF_TRUNC).uint,
                 permissions.rawInt,
                 LIBSSH2_SFTP_OPENFILE
             )
@@ -429,7 +429,10 @@ public extension SFTP {
             return false
         }
         // 使用 io.Copy 进行流式传输
-        guard await io.Copy(stream, write, ssh.bufferSize, progress) == size.int else {
+        let rc = await io.Copy(stream, write, ssh.bufferSize) { send in
+            progress(send, size)
+        }
+        guard rc == size.int else {
             closeHandle()
             return false
         }
@@ -535,7 +538,7 @@ public extension SFTP {
         guard handle != nil else {
             return
         }
-        ssh.callSSH2 { [self] in
+        _ = ssh.callSSH2 { [self] in
             libssh2_sftp_close_handle(handle)
         }
         handle = nil

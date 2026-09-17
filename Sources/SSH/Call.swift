@@ -49,8 +49,7 @@ extension SSH {
         var ret: T?
         repeat {
             ret = channelPoll.mutex.withLock { callback() }
-            guard ret == nil, rawSession != nil,
-                  libssh2_session_last_errno(rawSession) == LIBSSH2_ERROR_EAGAIN
+            guard ret == nil, rawSession != nil, libssh2_session_last_errno(rawSession) == LIBSSH2_ERROR_EAGAIN
             else { break }
             guard waitSocket() else {
                 break

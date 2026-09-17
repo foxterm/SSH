@@ -156,7 +156,8 @@ final class ChannelPoller {
         pollFd.fd.channel = task.handle
 
         var events = LIBSSH2_POLLFD_POLLIN | LIBSSH2_POLLFD_POLLEXT
-        if task.hasPendingWrite || (task.write?.hasBytesAvailable == true) {
+
+        if task.hasPendingWrite || task.write != nil {
             events |= LIBSSH2_POLLFD_POLLOUT
         }
         pollFd.events = events.uint
