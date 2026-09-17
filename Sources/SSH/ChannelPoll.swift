@@ -8,26 +8,33 @@ import Extension
 import Foundation
 import Sync
 
-class ChannelStream {
-    let wait: WaitGroup = .init()
+/// 封装 SSH 通道读写任务，管理内部流状态及 I/O 缓冲
+final class SSHChannelTask {
     let handle: OpaquePointer
     let output: OutputStream
     let outerr: OutputStream?
     let write: InputStream?
-    var continuation: CheckedContinuation<Void, Never>?
-    var totalSize: Int64 = 0
-    var onProgress: ((_ current: Int64, _ total: Int64) -> Bool)?
 
-    // 基于游标的环形/偏移 Buffer，避免 removeFirst 的 O(N) 内存拷贝
-    var writeBuffer = [UInt8]()
-    var writeBufferOffset = 0
+    let totalSize: Int64
+    let onProgress: ((_ current: Int64, _ total: Int64) -> Bool)?
 
-    /// 线程安全与生命周期控制标记，避免外部注销或释放句柄后引发悬空指针闪退
-    var isCancelled: Bool = false
+    // 线程安全与生命周期控制
+    let waitGroup: WaitGroup = .init()
+    private(set) var isCancelled: Bool = false
+    private let lock: Mutex = .init()
+    private var continuation: CheckedContinuation<Void, Never>?
+
+    // 写缓冲管理
+    private var writeBuffer = [UInt8]()
+    private var writeOffset = 0
 
     init(
-        handle: OpaquePointer, output: OutputStream, outerr: OutputStream?, write: InputStream?,
-        continuation: CheckedContinuation<Void, Never>?, totalSize: Int64,
+        handle: OpaquePointer,
+        output: OutputStream,
+        outerr: OutputStream?,
+        write: InputStream?,
+        continuation: CheckedContinuation<Void, Never>?,
+        totalSize: Int64,
         onProgress: ((Int64, Int64) -> Bool)?
     ) {
         self.handle = handle
@@ -40,361 +47,301 @@ class ChannelStream {
     }
 
     var hasPendingWrite: Bool {
-        writeBufferOffset < writeBuffer.count
+        writeOffset < writeBuffer.count
     }
 
-    func appendWriteData(from pointer: UnsafePointer<UInt8>, count: Int) {
-        if writeBufferOffset > 0, writeBufferOffset == writeBuffer.count {
+    func appendPendingData(from pointer: UnsafeRawPointer, count: Int) {
+        if writeOffset > 0, writeOffset == writeBuffer.count {
             writeBuffer.removeAll(keepingCapacity: true)
-            writeBufferOffset = 0
+            writeOffset = 0
         }
-        writeBuffer.append(contentsOf: UnsafeBufferPointer(start: pointer, count: count))
+        let bufferPtr = pointer.assumingMemoryBound(to: UInt8.self)
+        writeBuffer.append(contentsOf: UnsafeBufferPointer(start: bufferPtr, count: count))
+    }
+
+    func advanceWriteOffset(by count: Int) {
+        writeOffset += count
+        if writeOffset >= writeBuffer.count {
+            writeBuffer.removeAll(keepingCapacity: true)
+            writeOffset = 0
+        }
+    }
+
+    func pendingWriteData() -> (ptr: UnsafePointer<UInt8>, count: Int)? {
+        guard hasPendingWrite else { return nil }
+        return writeBuffer.withUnsafeBufferPointer { bp in
+            guard let baseAddr = bp.baseAddress else { return nil }
+            return (baseAddr.advanced(by: writeOffset), writeBuffer.count - writeOffset)
+        }
+    }
+
+    func prepareStreams() {
+        if output.streamStatus == .notOpen {
+            output.open()
+        }
+        if outerr?.streamStatus == .notOpen {
+            outerr?.open()
+        }
+        if write?.streamStatus == .notOpen {
+            write?.open()
+        }
+    }
+
+    func cancelAndComplete() {
+        lock.withLock {
+            guard !isCancelled else { return }
+            isCancelled = true
+
+            waitGroup.wait()
+            output.close()
+            outerr?.close()
+            write?.close()
+
+            continuation?.resume()
+            continuation = nil
+        }
     }
 }
 
-class ChannelPoll {
-    var bufferSize = 0x10000 // 64KB
-    let queue = DispatchQueue(label: "app.foxterm.channeltask.queue")
-    var _isLooping: Bool = false
+/// 高性能 SSH 通道多路复用轮询器
+final class SSHChannelPoller {
+    private let bufferSize: Int = 0x10000 // 64KB
+    private let queue = DispatchQueue(label: "app.foxterm.ssh.poller", qos: .userInitiated)
     let mutex: Mutex = .init()
 
-    private var _tasks: [OpaquePointer: ChannelStream] = [:]
-}
+    private var _tasks: [OpaquePointer: SSHChannelTask] = [:]
+    private var isLooping: Bool = false
 
-extension ChannelPoll {
     func register(
-        handle: OpaquePointer, output: OutputStream, outerr: OutputStream?, write: InputStream?,
+        handle: OpaquePointer,
+        output: OutputStream,
+        outerr: OutputStream?,
+        write: InputStream?,
         totalSize: Int64 = 0,
         progress: ((_ current: Int64, _ total: Int64) -> Bool)? = nil
     ) async {
-        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
-            let task = ChannelStream(
-                handle: handle,
-                output: output,
-                outerr: outerr,
-                write: write,
-                continuation: continuation,
-                totalSize: totalSize,
-                onProgress: progress
+        await withCheckedContinuation { continuation in
+            let task = SSHChannelTask(
+                handle: handle, output: output, outerr: outerr, write: write,
+                continuation: continuation, totalSize: totalSize, onProgress: progress
             )
 
             mutex.withLock {
                 _tasks[handle] = task
-                if !_isLooping {
-                    _isLooping = true
-                    queue.async { [weak self] in
-                        self?.runMasterLoop()
-                    }
+                if !isLooping {
+                    isLooping = true
+                    queue.async { [weak self] in self?.runEventLoop() }
                 }
             }
         }
     }
 
     func unregister(handle: OpaquePointer) {
-        remove([handle])
+        removeTasks([handle])
     }
 
-    func runMasterLoop() {
-        defer {
-            mutex.withLock { _isLooping = false }
-        }
+    private func runEventLoop() {
+        defer { mutex.withLock { isLooping = false } }
 
-        let data: Buffer<CChar> = .init(bufferSize)
+        let dataBuffer = Buffer<CChar>(bufferSize)
         var progressTracker: [OpaquePointer: Int64] = [:]
 
         while true {
-            // 1. 在锁保护下提取有效（未取消）的 Task
-            let currentTasks = mutex.withLock {
-                _tasks.values.filter { !$0.isCancelled }
-            }
-            if currentTasks.isEmpty {
-                break
-            }
+            let activeTasks = mutex.withLock { _tasks.values.filter { !$0.isCancelled } }
+            guard !activeTasks.isEmpty else { break }
 
-            // 2. 构建 LIBSSH2_POLLFD 数组
-            var validTasks: [ChannelStream] = []
             var pollFds: [LIBSSH2_POLLFD] = []
-            pollFds.reserveCapacity(currentTasks.count)
+            pollFds.reserveCapacity(activeTasks.count)
 
-            mutex.withLock {
-                for t in currentTasks {
-                    guard let existingTask = _tasks[t.handle], !existingTask.isCancelled else { continue }
-
-                    var pollFd = LIBSSH2_POLLFD()
-                    pollFd.type = LIBSSH2_POLLFD_CHANNEL.uint8
-                    pollFd.fd.channel = existingTask.handle
-
-                    var events = LIBSSH2_POLLFD_POLLIN | LIBSSH2_POLLFD_POLLEXT
-                    if existingTask.hasPendingWrite || (existingTask.write?.hasBytesAvailable == true) {
-                        events |= LIBSSH2_POLLFD_POLLOUT
-                    }
-
-                    pollFd.events = events.uint
-                    pollFd.revents = 0
-
-                    pollFds.append(pollFd)
-                    validTasks.append(existingTask)
-                }
+            for task in activeTasks {
+                task.prepareStreams()
+                pollFds.append(buildPollDescriptor(for: task))
             }
 
-            if validTasks.isEmpty {
-                break
-            }
-
-            // 锁外统一初始化 Stream 状态
-            for task in validTasks {
-                setupStreams(for: task)
-            }
-
-            // 3. 调用 libssh2_poll (超时 10ms)
-            let pollRc = mutex.withLock {
-                libssh2_poll(&pollFds, pollFds.count.uint32, 10)
-            }
+            let pollRc = mutex.withLock { libssh2_poll(&pollFds, pollFds.count.uint32, 10) }
 
             if pollRc < 0 {
                 cleanupAll()
                 break
             }
 
-            var tasksToRemove = Set<OpaquePointer>()
+            var tasksToEvict = Set<OpaquePointer>()
 
-            // 4. 处理轮询事件响应
-            for (idx, task) in validTasks.enumerated() {
-                task.wait.add()
-                defer {
-                    task.wait.done()
-                }
+            for (idx, task) in activeTasks.enumerated() {
+                task.waitGroup.add()
+                defer { task.waitGroup.done() }
 
-                // 读取/写入前校验：防范 poll 阻塞 10ms 期间外部触发了注销
-                let isTaskAlive = mutex.withLock {
-                    if let t = _tasks[task.handle], !t.isCancelled {
-                        return true
-                    }
-                    return false
-                }
-
-                if !isTaskAlive {
-                    tasksToRemove.insert(task.handle)
+                // 防御性校验：轮询期间被外部注销
+                let isAlive = mutex.withLock { _tasks[task.handle] != nil && !task.isCancelled }
+                if !isAlive {
+                    tasksToEvict.insert(task.handle)
                     continue
                 }
 
-                let revents = pollFds[idx].revents.int32
-                let isChannelClosed = (revents & LIBSSH2_POLLFD_CHANNEL_CLOSED) != 0
-                let isTimeout = (pollRc == 0)
+                let increment = processTaskEvents(task: task, fd: pollFds[idx], buffer: dataBuffer, pollRc: pollRc)
 
-                let canRead = isTimeout || isChannelClosed || (revents & (LIBSSH2_POLLFD_POLLIN | LIBSSH2_POLLFD_POLLEXT)) != 0
-                let canWrite = !isChannelClosed && (isTimeout || (revents & LIBSSH2_POLLFD_POLLOUT) != 0)
-
-                var currentIncrement: Int64 = 0
-                var hasReadError = false
-                var hasWriteError = false
-                var isStdoutEof = false
-                var isStderrEof = (task.outerr == nil)
-
-                // 4.1 读取 stdout (stream_id: 0)
-                if canRead {
-                    let r = read(data: data, task: task, stream_id: 0)
-                    if r < 0 {
-                        if r != LIBSSH2_ERROR_EAGAIN {
-                            hasReadError = true
-                        }
-                    } else if r == 0 {
-                        isStdoutEof = checkChannelEof(task: task)
-                    } else {
-                        currentIncrement += r
+                if increment < 0 {
+                    tasksToEvict.insert(task.handle) // 发生致命错误或 EOF
+                } else if increment > 0 {
+                    let newTotal = (progressTracker[task.handle] ?? 0) + increment
+                    progressTracker[task.handle] = newTotal
+                    if task.onProgress?(newTotal, task.totalSize) == false {
+                        tasksToEvict.insert(task.handle)
                     }
-                }
-
-                // 4.2 读取 stderr (stream_id: 1)
-                if canRead && !hasReadError && !isStderrEof, let outerr = task.outerr {
-                    let r = read(data: data, task: task, output: outerr, stream_id: 1)
-                    if r < 0 {
-                        if r != LIBSSH2_ERROR_EAGAIN {
-                            hasReadError = true
-                        }
-                    } else if r == 0 {
-                        isStderrEof = checkChannelEof(task: task)
-                    } else {
-                        currentIncrement += r
-                    }
-                }
-
-                // 4.3 处理写入
-                if canWrite && !hasReadError {
-                    let w = write(data: data, task: task)
-                    if w < 0 {
-                        if w != LIBSSH2_ERROR_EAGAIN {
-                            hasWriteError = true
-                        }
-                    } else {
-                        currentIncrement += w
-                    }
-                }
-
-                // 4.4 进度更新
-                if currentIncrement > 0 {
-                    let total = (progressTracker[task.handle] ?? 0) + currentIncrement
-                    progressTracker[task.handle] = total
-                    if task.onProgress?(total, task.totalSize) == false {
-                        tasksToRemove.insert(task.handle)
-                        continue
-                    }
-                }
-
-                // 4.5 退出与清理条件判断
-                let bothEofReached = isStdoutEof && isStderrEof
-                let isHasPollErr = (revents & (LIBSSH2_POLLFD_POLLERR | LIBSSH2_POLLFD_POLLHUP)) != 0
-
-                if hasReadError || hasWriteError || (isChannelClosed && currentIncrement == 0) || bothEofReached || isHasPollErr {
-                    tasksToRemove.insert(task.handle)
-                    continue
                 }
             }
 
-            if !tasksToRemove.isEmpty {
-                for handle in tasksToRemove {
+            if !tasksToEvict.isEmpty {
+                for handle in tasksToEvict {
                     progressTracker.removeValue(forKey: handle)
                 }
-                remove(Array(tasksToRemove))
+                removeTasks(Array(tasksToEvict))
             }
         }
     }
 
-    private func checkChannelEof(task: ChannelStream) -> Bool {
+    private func processTaskEvents(task: SSHChannelTask, fd: LIBSSH2_POLLFD, buffer: Buffer<CChar>, pollRc: Int32) -> Int64 {
+        let revents = fd.revents.int32
+        let isClosed = (revents & LIBSSH2_POLLFD_CHANNEL_CLOSED) != 0
+        let isTimeout = (pollRc == 0)
+        let isError = (revents & (LIBSSH2_POLLFD_POLLERR | LIBSSH2_POLLFD_POLLHUP)) != 0
+
+        let canRead = isTimeout || isClosed || (revents & (LIBSSH2_POLLFD_POLLIN | LIBSSH2_POLLFD_POLLEXT)) != 0
+        let canWrite = !isClosed && (isTimeout || (revents & LIBSSH2_POLLFD_POLLOUT) != 0)
+
+        var currentIncrement: Int64 = 0
+        var eofStdout = false
+        var eofStderr = (task.outerr == nil)
+        var fatalError = isError
+
+        // 1. 读 Stdout
+        if canRead && !fatalError {
+            let r = performRead(task: task, output: task.output, streamId: 0, buffer: buffer)
+            if r < 0 {
+                fatalError = true
+            } else if r == 0 {
+                eofStdout = checkEOF(task)
+            } else {
+                currentIncrement += r
+            }
+        }
+
+        // 2. 读 Stderr
+        if canRead && !fatalError && !eofStderr, let errStream = task.outerr {
+            let r = performRead(task: task, output: errStream, streamId: 1, buffer: buffer)
+            if r < 0 {
+                fatalError = true
+            } else if r == 0 {
+                eofStderr = checkEOF(task)
+            } else {
+                currentIncrement += r
+            }
+        }
+
+        // 3. 写 Stdin
+        if canWrite && !fatalError {
+            let w = performWrite(task: task, buffer: buffer)
+            if w < 0 {
+                fatalError = true
+            } else {
+                currentIncrement += w
+            }
+        }
+
+        let bothEof = eofStdout && eofStderr
+        let needsEviction = fatalError || (isClosed && currentIncrement == 0) || bothEof
+
+        return needsEviction ? -1 : currentIncrement
+    }
+
+    private func buildPollDescriptor(for task: SSHChannelTask) -> LIBSSH2_POLLFD {
+        var pollFd = LIBSSH2_POLLFD()
+        pollFd.type = LIBSSH2_POLLFD_CHANNEL.uint8
+        pollFd.fd.channel = task.handle
+
+        var events = LIBSSH2_POLLFD_POLLIN | LIBSSH2_POLLFD_POLLEXT
+        if task.hasPendingWrite || (task.write?.hasBytesAvailable == true) {
+            events |= LIBSSH2_POLLFD_POLLOUT
+        }
+        pollFd.events = events.uint
+        pollFd.revents = 0
+        return pollFd
+    }
+
+    private func performRead(task: SSHChannelTask, output: OutputStream, streamId: Int32, buffer: Buffer<CChar>) -> Int64 {
+        let n = mutex.withLock {
+            (!task.isCancelled && _tasks[task.handle] != nil)
+                ? libssh2_channel_read_ex(task.handle, streamId, buffer.buffer, buffer.count)
+                : -1
+        }
+
+        guard n > 0 else { return (n == LIBSSH2_ERROR_EAGAIN || n == 0) ? 0 : -1 }
+
+        var totalWritten = 0
+        while totalWritten < n {
+            let w = output.write(buffer.buffer.advanced(by: totalWritten), maxLength: n - totalWritten)
+            guard w > 0 else { return -1 }
+            totalWritten += w
+        }
+        return n.int64
+    }
+
+    private func performWrite(task: SSHChannelTask, buffer: Buffer<CChar>) -> Int64 {
+        if let (ptr, count) = task.pendingWriteData() {
+            let rc = mutex.withLock {
+                (!task.isCancelled && _tasks[task.handle] != nil)
+                    ? libssh2_channel_write_ex(task.handle, 0, ptr, count)
+                    : -1
+            }
+            if rc > 0 {
+                task.advanceWriteOffset(by: rc)
+                return rc.int64
+            }
+            return rc == LIBSSH2_ERROR_EAGAIN ? 0 : -1
+        }
+
+        guard let input = task.write, input.hasBytesAvailable else { return 0 }
+        let nread = input.read(buffer.buffer, maxLength: buffer.count)
+        guard nread > 0 else { return nread < 0 ? -1 : 0 }
+
+        let written = mutex.withLock {
+            (!task.isCancelled && _tasks[task.handle] != nil)
+                ? libssh2_channel_write_ex(task.handle, 0, buffer.buffer, nread)
+                : -1
+        }
+
+        if written > 0 {
+            if written < nread {
+                let raw = UnsafeRawPointer(buffer.buffer).advanced(by: written)
+                task.appendPendingData(from: raw, count: nread - written)
+            }
+            return written.int64
+        } else if written == LIBSSH2_ERROR_EAGAIN {
+            task.appendPendingData(from: UnsafeRawPointer(buffer.buffer), count: nread)
+            return 0
+        }
+
+        return -1
+    }
+
+    private func checkEOF(_ task: SSHChannelTask) -> Bool {
         mutex.withLock {
             guard !task.isCancelled, _tasks[task.handle] != nil else { return false }
             return libssh2_channel_eof(task.handle) != 0
         }
     }
 
+    private func removeTasks(_ handles: [OpaquePointer]) {
+        guard !handles.isEmpty else { return }
+
+        let removedTasks = mutex.withLock {
+            handles.compactMap { _tasks.removeValue(forKey: $0) }
+        }
+        removedTasks.forEach { $0.cancelAndComplete() }
+    }
+
     private func cleanupAll() {
         let allHandles = mutex.withLock { Array(_tasks.keys) }
-        if !allHandles.isEmpty {
-            remove(allHandles)
-        }
-    }
-
-    private func setupStreams(for task: ChannelStream) {
-        if task.output.streamStatus == .notOpen {
-            task.output.open()
-        }
-        if task.outerr?.streamStatus == .notOpen {
-            task.outerr?.open()
-        }
-        if task.write?.streamStatus == .notOpen {
-            task.write?.open()
-        }
-    }
-
-    func remove(_ tasksToRemove: [OpaquePointer]) {
-        var removedTasks: [ChannelStream] = []
-
-        mutex.withLock {
-            if tasksToRemove.isEmpty {
-                return
-            }
-
-            for handle in tasksToRemove {
-                if let task = _tasks.removeValue(forKey: handle) {
-                    task.isCancelled = true
-                    removedTasks.append(task)
-                }
-            }
-        }
-
-        for t in removedTasks {
-            t.wait.wait()
-            t.output.close()
-            t.outerr?.close()
-            t.write?.close()
-            t.continuation?.resume()
-            t.continuation = nil
-        }
-    }
-
-    func read(data: Buffer<CChar>, task: ChannelStream, output: OutputStream? = nil, stream_id: Int32) -> Int64 {
-        let targetOutput = output ?? task.output
-        let n = mutex.withLock {
-            guard !task.isCancelled, _tasks[task.handle] != nil else { return -1 }
-            return libssh2_channel_read_ex(task.handle, stream_id, data.buffer, data.count)
-        }
-
-        if n > 0 {
-            let success = writeFully(to: targetOutput, buffer: data.buffer, count: n)
-            return success ? n.int64 : -1
-        } else if n == LIBSSH2_ERROR_EAGAIN || n == 0 {
-            return 0
-        } else {
-            return -1
-        }
-    }
-
-    private func writeFully(to output: OutputStream, buffer: UnsafePointer<CChar>, count: Int) -> Bool {
-        var totalWritten = 0
-        while totalWritten < count {
-            let written = output.write(buffer.advanced(by: totalWritten), maxLength: count - totalWritten)
-            if written <= 0 {
-                return false
-            }
-            totalWritten += written
-        }
-        return true
-    }
-
-    func write(data: Buffer<CChar>, task: ChannelStream) -> Int64 {
-        if task.hasPendingWrite {
-            let pendingCount = task.writeBuffer.count - task.writeBufferOffset
-
-            let rc = task.writeBuffer.withUnsafeBufferPointer { bp -> Int in
-                guard let baseAddr = bp.baseAddress else { return 0 }
-                let ptr = baseAddr.advanced(by: task.writeBufferOffset)
-                return mutex.withLock {
-                    guard !task.isCancelled, _tasks[task.handle] != nil else { return -1 }
-                    return libssh2_channel_write_ex(task.handle, 0, ptr, pendingCount)
-                }
-            }
-
-            if rc > 0 {
-                task.writeBufferOffset += rc
-                if task.writeBufferOffset >= task.writeBuffer.count {
-                    task.writeBuffer.removeAll(keepingCapacity: true)
-                    task.writeBufferOffset = 0
-                }
-                return rc.int64
-            } else if rc == LIBSSH2_ERROR_EAGAIN {
-                return 0
-            } else {
-                return -1
-            }
-        }
-
-        guard let input = task.write, input.hasBytesAvailable else { return 0 }
-
-        let nread = input.read(data.buffer, maxLength: data.count)
-        if nread > 0 {
-            let written = mutex.withLock {
-                guard !task.isCancelled, _tasks[task.handle] != nil else { return -1 }
-                return libssh2_channel_write_ex(task.handle, 0, data.buffer, nread)
-            }
-
-            if written > 0 {
-                if written < nread {
-                    let leftCount = nread - written
-                    let rawPtr = UnsafeRawPointer(data.buffer).advanced(by: written).assumingMemoryBound(to: UInt8.self)
-                    task.appendWriteData(from: rawPtr, count: leftCount)
-                }
-                return written.int64
-            } else if written == LIBSSH2_ERROR_EAGAIN {
-                let rawPtr = UnsafeRawPointer(data.buffer).assumingMemoryBound(to: UInt8.self)
-                task.appendWriteData(from: rawPtr, count: nread)
-                return 0
-            } else {
-                return -1
-            }
-        } else if nread < 0 {
-            return -1
-        }
-
-        return 0
+        removeTasks(allHandles)
     }
 }
