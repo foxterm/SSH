@@ -7,13 +7,10 @@ import Foundation
 
 /// 基础 IO 操作类，提供流式数据拷贝及异步调用封装
 public class io {
+    /// 专门用于处理阻塞 IO 的后台队列，避免 Task.detached 耗尽 Swift 协程池
+    private static let ioQueue = DispatchQueue(label: "app.foxterm.io.queue", attributes: .concurrent)
+
     /// 将数据从输入流异步拷贝到输出流
-    /// - Parameters:
-    ///   - r: 数据源输入流
-    ///   - w: 目标输出流
-    ///   - bufferSize: 拷贝时使用的缓冲区大小，默认 16KB (0x4000)
-    ///   - progress: 进度回调闭包。参数为累计发送字节数，返回 `false` 可中止拷贝。
-    /// - Returns: 实际拷贝的总字节数
     public static func Copy(
         _ r: InputStream,
         _ w: OutputStream,
@@ -56,7 +53,6 @@ public class io {
         _ bufferSize: Int = 0x4000,
         _ progress: @escaping (_ send: Int) -> Bool = { _ in true }
     ) -> Int {
-        // 确保流在操作前开启
         if r.streamStatus == .notOpen {
             r.open()
         }
@@ -64,37 +60,37 @@ public class io {
             w.open()
         }
         defer {
-            // 操作完成后确保流已关闭，释放资源
             w.close()
             r.close()
         }
 
-        // 分配指定的缓冲区
-        let buffer: Buffer<CChar> = .init(bufferSize)
+        // 分配缓冲区
+        let buffer = Buffer<UInt8>(bufferSize)
+
         var total = 0
 
-        // 循环读取直到流结束
         while r.hasBytesAvailable {
             let nread = r.read(buffer.buffer, maxLength: buffer.count)
-            guard nread > 0 else {
-                if nread < 0 {
-                    return nread
-                } // 读取出错
-                break // 读取完毕
+
+            if nread < 0 {
+                return nread
+            }
+            if nread == 0 {
+                break
             }
 
             var offset = 0
-            // 确保将读取到的数据完整写入输出流
-            while offset < nread, w.hasSpaceAvailable {
-                let written = w.write(buffer.buffer + offset, maxLength: nread - offset)
+
+            while offset < nread {
+                let written = w.write(buffer.buffer.advanced(by: offset), maxLength: nread - offset)
                 if written < 0 {
                     return written
-                } // 写入出错
+                }
+
                 offset += written
                 total += written
             }
 
-            // 触发进度回调，若外部返回 false 则提前中止传输（如用户点击取消）
             if !progress(total) {
                 return total
             }
@@ -103,13 +99,13 @@ public class io {
     }
 
     /// 通用的异步桥接工具函数
-    /// 将基于同步回调的操作转换为 Swift 的 async 异步流
-    /// - Parameters:
-    ///   - callback: 需要在后台执行的任务闭包
-    /// - Returns: 任务执行的返回值
+    /// 修复：使用 DispatchQueue 代替 Task.detached，避免同步阻塞 IO 耗尽 Swift 协程池
     public static func Call<T>(_ callback: @escaping () -> T) async -> T {
-        await Task.detached {
-            callback()
-        }.value
+        await withCheckedContinuation { continuation in
+            ioQueue.async {
+                let result = callback()
+                continuation.resume(returning: result)
+            }
+        }
     }
 }
