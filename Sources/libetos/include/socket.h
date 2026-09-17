@@ -140,6 +140,24 @@ int etos_socket_get_peer_info(int fd, char *ip_buf, size_t ip_buf_len, int *port
  */
 int etos_socket_get_local_info(int fd, char *ip_buf, size_t ip_buf_len, int *port);
 
+/* ------------------------------------------------------------
+   域名解析数据结构
+   ------------------------------------------------------------ */
+typedef struct {
+  char ip[64]; /* IP 地址字符串 (支持 IPv4/IPv6) */
+  int family;  /* AF_INET 或 AF_INET6 */
+} EtosIPAddr;
+
+/**
+ * @brief 解析域名并获取其所有的 IPv4 和 IPv6 地址
+ *
+ * @param host 待解析的域名或 IP 地址
+ * @param addrs 用于接收 IP 地址列表的数组
+ * @param max_addrs 数组最大容量
+ * @return 成功返回实际获取到的 IP 数量，失败或未解析到返回 -1
+ */
+int etos_socket_resolve_all_ips(const char *host, EtosIPAddr *addrs, size_t max_addrs);
+
 #ifdef __cplusplus
 }
 #endif
