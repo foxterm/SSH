@@ -14,7 +14,7 @@ public extension SSH {
     /// - Returns: 是否连接成功（Bool）
     func connect() async -> Bool {
         // 异步调用底层 IO 执行连接操作
-        fd = await io.call { [self] in
+        fd = await io.Call { [self] in
             etos_socket_connect(host, port.int32, timeout.int32 * 1000)
         }
         // 校验连接状态，若失败则提取并保存错误信息
