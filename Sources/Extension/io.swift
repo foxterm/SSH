@@ -20,7 +20,7 @@ public class io {
         _ bufferSize: Int = 0x4000,
         _ progress: @escaping (_ send: Int) -> Bool = { _ in true }
     ) async -> Int {
-        await call {
+        await Call {
             Copy(w, r, bufferSize, progress)
         }
     }
@@ -42,7 +42,7 @@ public class io {
         _ bufferSize: Int = 0x4000,
         _ progress: @escaping (_ send: Int) -> Bool = { _ in true }
     ) async -> Int {
-        await call {
+        await Call {
             Copy(w, r, bufferSize, progress)
         }
     }
@@ -107,10 +107,9 @@ public class io {
     /// - Parameters:
     ///   - callback: 需要在后台执行的任务闭包
     /// - Returns: 任务执行的返回值
-    public static func call<T>(_ callback: @escaping () -> T) async -> T {
-        await withUnsafeContinuation { continuation in
-            let ret: T = callback()
-            continuation.resume(returning: ret)
-        }
+    public static func Call<T>(_ callback: @escaping () -> T) async -> T {
+        await Task.detached {
+            callback()
+        }.value
     }
 }
