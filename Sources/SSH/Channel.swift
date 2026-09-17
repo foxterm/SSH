@@ -97,7 +97,7 @@ public extension Channel {
             outerr: outerr,
             write: nil
         ) { (currentLoopBytes: Int64, _: Int64) -> Bool in
-            return max <= 0 ? true : currentLoopBytes <= max
+            max <= 0 ? true : currentLoopBytes <= max
         }
         closeChannel()
 
