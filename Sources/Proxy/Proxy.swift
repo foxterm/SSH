@@ -56,7 +56,7 @@ public struct ProxyConfiguration: Codable, Equatable {
 
 public extension ProxyConfiguration {
     func connect(host: String, port: Int) async -> Int32 {
-        await io.call { [self] in
+        await io.Call { [self] in
             etos_socket_connect_proxy(
                 type.raw, proxyHost, proxyPort.int32, timeoutMs.int32, host,
                 port.int32, authentication?.user ?? nil, authentication?.password ?? nil
