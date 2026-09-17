@@ -58,7 +58,6 @@ public extension Mutex {
     }
 
     /// 针对无返回值闭包的锁定封装
-    @discardableResult
     @inline(__always)
     func withVoid(_ body: () -> Void) {
         withLock(body)
