@@ -12,7 +12,7 @@ public extension Net {
     /// - Parameter domain: 要解析的域名。
     /// - Returns: 与给定域名关联的 IP 地址数组。
     static func resolveDomainName(_ domain: String) async -> [IP] {
-        await io.call {
+        await io.Call {
             if domain.isIP {
                 return [domain]
             }
