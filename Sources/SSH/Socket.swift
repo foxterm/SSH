@@ -48,7 +48,7 @@ public extension SSH {
             return nil
         }
         let host = buffer.buffer.string
-        return (host,port.int)
+        return (host, port.int)
     }
 
     /// 获取当前连接的本地地址
@@ -59,7 +59,7 @@ public extension SSH {
             return nil
         }
         let host = buffer.buffer.string
-        return (host,port.int)
+        return (host, port.int)
     }
 
 //    /// 内部数据发送方法
