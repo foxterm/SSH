@@ -4,6 +4,7 @@
 
 import CSSH2
 import Foundation
+import Sync
 
 extension SSH {
     /// 异步执行返回整数类型的 libssh2 函数
@@ -12,7 +13,15 @@ extension SSH {
     /// - Returns: 函数执行结果（通常为错误码或字节数）
     func callSSH2<T: FixedWidthInteger>(_ callback: @escaping () -> T) async -> T {
         await withUnsafeContinuation { continuation in
-            let ret: T = callSSH2(callback)
+            var ret: T
+            repeat {
+                ret = channelPoll.mutex.withLock { callback() }
+                // 如果返回 EAGAIN，说明当前 IO 未就绪，进入 waitsocket 挂起一小段时间后重试
+                guard ret == T(LIBSSH2_ERROR_EAGAIN) else { break }
+                guard waitSocket() else {
+                    break
+                }
+            } while ret == T(LIBSSH2_ERROR_EAGAIN)
             continuation.resume(returning: ret)
         }
     }
@@ -22,7 +31,17 @@ extension SSH {
     /// - Returns: 函数执行结果，失败或需要等待时返回 nil
     func callSSH2<T>(_ callback: @escaping () -> T?) async -> T? {
         await withUnsafeContinuation { continuation in
-            let ret: T? = callSSH2(callback)
+            var ret: T?
+            repeat {
+                ret = channelPoll.mutex.withLock { callback() }
+                // 只有当返回为 nil 且 errno 为 EAGAIN 时才进行重试
+                guard ret == nil, rawSession != nil,
+                      libssh2_session_last_errno(rawSession) == LIBSSH2_ERROR_EAGAIN
+                else { break }
+                guard waitSocket() else {
+                    break
+                }
+            } while ret == nil
             continuation.resume(returning: ret)
         }
     }
@@ -32,15 +51,14 @@ extension SSH {
     /// - Parameter callback: 执行 libssh2 操作的闭包
     /// - Returns: 最终执行结果
     func callSSH2<T: FixedWidthInteger>(_ callback: @escaping () -> T) -> T {
-        var ret: T
-        repeat {
-            ret = channelPoll.mutex.withLock { callback() }
-            // 如果返回 EAGAIN，说明当前 IO 未就绪，进入 waitsocket 挂起一小段时间后重试
-            guard ret == T(LIBSSH2_ERROR_EAGAIN) else { break }
-            guard waitSocket() else {
-                break
-            }
-        } while ret == T(LIBSSH2_ERROR_EAGAIN)
+        var ret: T = 0
+        let wait: WaitGroup = .init()
+        wait.add()
+        Task {
+            ret = await callSSH2(callback)
+            wait.done()
+        }
+        wait.wait()
         return ret
     }
 
@@ -49,16 +67,13 @@ extension SSH {
     /// - Returns: 最终执行结果
     func callSSH2<T>(_ callback: @escaping () -> T?) -> T? {
         var ret: T?
-        repeat {
-            ret = channelPoll.mutex.withLock { callback() }
-            // 只有当返回为 nil 且 errno 为 EAGAIN 时才进行重试
-            guard ret == nil, rawSession != nil,
-                  libssh2_session_last_errno(rawSession) == LIBSSH2_ERROR_EAGAIN
-            else { break }
-            guard waitSocket() else {
-                break
-            }
-        } while ret == nil
+        let wait: WaitGroup = .init()
+        wait.add()
+        Task {
+            ret = await callSSH2(callback)
+            wait.done()
+        }
+        wait.wait()
         return ret
     }
 
