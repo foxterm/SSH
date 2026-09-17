@@ -91,7 +91,7 @@ static int connect_with_timeout(int fd, const struct sockaddr *addr, socklen_t a
   }
 
   int error = 0;
-  socklen_t len = sizeof(error);
+  socklen_t len = (socklen_t)sizeof(error); // 修复: 显式强转 size_t -> socklen_t
   if (getsockopt(fd, SOL_SOCKET, SO_ERROR, &error, &len) < 0 || error != 0) {
     if (error != 0)
       errno = error;
@@ -104,16 +104,17 @@ static int connect_with_timeout(int fd, const struct sockaddr *addr, socklen_t a
 }
 
 static int extract_sockaddr_info(const struct sockaddr_storage *addr, char *ip_buf, size_t ip_buf_len, int *port) {
+  socklen_t buf_len = (socklen_t)ip_buf_len;
   if (addr->ss_family == AF_INET) {
     struct sockaddr_in *s = (struct sockaddr_in *)addr;
     *port = ntohs(s->sin_port);
-    if (inet_ntop(AF_INET, &s->sin_addr, ip_buf, ip_buf_len) == NULL) {
+    if (inet_ntop(AF_INET, &s->sin_addr, ip_buf, buf_len) == NULL) {
       return -1;
     }
   } else if (addr->ss_family == AF_INET6) {
     struct sockaddr_in6 *s = (struct sockaddr_in6 *)addr;
     *port = ntohs(s->sin6_port);
-    if (inet_ntop(AF_INET6, &s->sin6_addr, ip_buf, ip_buf_len) == NULL) {
+    if (inet_ntop(AF_INET6, &s->sin6_addr, ip_buf, buf_len) == NULL) {
       return -1;
     }
   } else {
@@ -176,7 +177,7 @@ static bool handshake_http_proxy(int fd, const char *target_host, int target_por
                    target_host, target_port, target_host, target_port, auth_header);
   }
 
-  if (len < 0 || len >= (int)sizeof(req) || etos_socket_send_timeout(fd, req, len, 0, timeout_ms) <= 0) {
+  if (len < 0 || len >= (int)sizeof(req) || etos_socket_send_timeout(fd, req, (size_t)len, 0, timeout_ms) <= 0) {
     return false;
   }
 
@@ -188,7 +189,7 @@ static bool handshake_http_proxy(int fd, const char *target_host, int target_por
     ssize_t rc = etos_socket_recv_timeout(fd, resp + resp_len, sizeof(resp) - 1 - resp_len, 0, timeout_ms);
     if (rc <= 0)
       break;
-    resp_len += rc;
+    resp_len += (size_t)rc;
     resp[resp_len] = '\0';
 
     if (strstr(resp, "\r\n\r\n") != NULL) {
@@ -360,7 +361,7 @@ int etos_socket_resolve_all_ips(const char *host, EtosIPAddr *addrs, size_t max_
       continue;
     }
 
-    if (inet_ntop(rp->ai_family, addr_ptr, ip_str, sizeof(ip_str)) == NULL) {
+    if (inet_ntop(rp->ai_family, addr_ptr, ip_str, (socklen_t)sizeof(ip_str)) == NULL) { // 修复: 显式强转 size_t -> socklen_t
       continue;
     }
 
@@ -563,7 +564,7 @@ int etos_socket_get_peer_info(int fd, char *ip_buf, size_t ip_buf_len, int *port
   }
 
   struct sockaddr_storage addr;
-  socklen_t addr_len = sizeof(addr);
+  socklen_t addr_len = (socklen_t)sizeof(addr); // 修复: 显式强转 size_t -> socklen_t
 
   if (getpeername(fd, (struct sockaddr *)&addr, &addr_len) < 0) {
     return -1;
@@ -578,7 +579,7 @@ int etos_socket_get_local_info(int fd, char *ip_buf, size_t ip_buf_len, int *por
   }
 
   struct sockaddr_storage addr;
-  socklen_t addr_len = sizeof(addr);
+  socklen_t addr_len = (socklen_t)sizeof(addr); // 修复: 显式强转 size_t -> socklen_t
 
   if (getsockname(fd, (struct sockaddr *)&addr, &addr_len) < 0) {
     return -1;
@@ -593,7 +594,7 @@ int etos_socket_get_traffic_stats(int fd, FdTrafficStats *stats) {
   }
 
   struct tcp_connection_info info;
-  socklen_t len = sizeof(info);
+  socklen_t len = (socklen_t)sizeof(info); // 修复: 显式强转 size_t -> socklen_t
 
   if (getsockopt(fd, IPPROTO_TCP, TCP_CONNECTION_INFO, &info, &len) == 0) {
     atomic_store(&stats->rx_bytes, info.tcpi_rxbytes);
