@@ -1,0 +1,9 @@
+module libssh {
+    umbrella header  "callbacks.h"
+    umbrella header  "legacy.h"
+    umbrella header  "libssh.h"
+    umbrella header  "libssh_version.h"
+    umbrella header  "sftp.h"
+    umbrella header  "ssh2.h"
+    export *
+}
