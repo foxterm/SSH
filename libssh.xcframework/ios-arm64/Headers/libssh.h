@@ -1,0 +1,6 @@
+#include "libssh/callbacks.h"
+#include "libssh/legacy.h"
+#include "libssh/libssh.h"
+#include "libssh/libssh_version.h"
+#include "libssh/sftp.h"
+#include "libssh/ssh2.h"
