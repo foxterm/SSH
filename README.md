@@ -2,6 +2,8 @@
 
 FoxTerm APP 专用 SSH 核心库，基于 libssh 的 Swift 封装，支持 SSH 会话管理、SFTP/SCP 文件传输、端口转发及远程主机监控。
 
+> 本库为 [FoxTerm](https://foxterm.app/) APP 专用核心组件。如需使用完整功能，请下载 FoxTerm 客户端：[https://foxterm.app/](https://foxterm.app/)
+
 ## 功能
 
 - **SSH 会话** — 连接、握手、已知主机校验、Keepalive
