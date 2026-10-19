@@ -28,7 +28,17 @@ A dedicated SSH core library for the FoxTerm app — a Swift wrapper built on li
 
 ## Installation
 
-Integrate via CocoaPods:
+### Swift Package Manager
+
+```swift
+.package(url: "https://github.com/foxterm/SSH.git", branch: "main"),
+```
+
+```swift
+.product(name: "SSH", package: "SSH"),
+```
+
+### CocoaPods
 
 ```ruby
 pod 'SSH', :git => 'https://github.com/foxterm/SSH.git'
@@ -165,7 +175,7 @@ extension ViewController: ShellDelegate {
 ## Project Structure
 
 ```
-src/
+Sources/SSH/
 ├── SSH.swift              # Core client (actor)
 ├── Session.swift          # Handshake and session management
 ├── Auth.swift             # Authentication

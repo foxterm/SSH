@@ -28,7 +28,17 @@ FoxTerm APP 专用 SSH 核心库，基于 libssh 的 Swift 封装，支持 SSH �
 
 ## 安装
 
-通过 CocoaPods 集成：
+### Swift Package Manager
+
+```swift
+.package(url: "https://github.com/foxterm/SSH.git", branch: "main"),
+```
+
+```swift
+.product(name: "SSH", package: "SSH"),
+```
+
+### CocoaPods
 
 ```ruby
 pod 'SSH', :git => 'https://github.com/foxterm/SSH.git'
@@ -165,7 +175,7 @@ extension ViewController: ShellDelegate {
 ## 项目结构
 
 ```
-src/
+Sources/SSH/
 ├── SSH.swift              # 核心客户端（actor）
 ├── Session.swift          # 握手、会话管理
 ├── Auth.swift             # 身份认证
