@@ -1,4 +1,4 @@
 module libssh {
-    umbrella header  "ssh.h"
+    umbrella header "ssh.h"
     export *
 }
