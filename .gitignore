@@ -2,3 +2,5 @@
 .build/
 Package.resolved
 .swiftpm/
+xcframework_build/
+xcframework/
