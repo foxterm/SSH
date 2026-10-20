@@ -9,7 +9,7 @@ let package = Package(
         .macOS(.v14),
     ],
     products: [
-        .library(name: "SSH", targets: ["SSH"])
+        .library(name: "SSH", targets: ["SSH"]),
     ],
     dependencies: [
         .package(url: "https://github.com/foxterm/libetos.git", branch: "main"),
@@ -37,7 +37,7 @@ let package = Package(
                 .product(name: "OpenSSL", package: "OpenSSL"),
             ],
             linkerSettings: [
-                .linkedLibrary("z")
+                .linkedLibrary("z"),
             ]
         ),
     ]
