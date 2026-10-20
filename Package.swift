@@ -29,12 +29,12 @@ let package = Package(
         .target(
             name: "SSH",
             dependencies: [
-                "libetos",
-                "Sync",
-                "Proxy",
-                "Extension",
-                "libssh",
+                .product(name: "libetos", package: "libetos"),
+                .product(name: "Sync", package: "Sync"),
+                .product(name: "Proxy", package: "Proxy"),
+                .product(name: "Extension", package: "Extension"),
                 .product(name: "OpenSSL", package: "OpenSSL"),
+                "libssh",
             ],
             linkerSettings: [
                 .linkedLibrary("z"),
