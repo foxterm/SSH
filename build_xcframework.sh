@@ -6,7 +6,7 @@ export GIT_ADVICE_DETACHED_HEAD=false
 
 # ================= 配置区 =================
 FOX_TERM_VERSION="0.0.1"
-OPENSSL_VERSION="openssl-3.6.3"
+OPENSSL_VERSION="openssl-3.6.5"
 LIBSSH_VERSION="0.12.2"
 MACOS_TARGET="14.0"
 IOS_TARGET="16.0"
