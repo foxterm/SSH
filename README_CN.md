@@ -50,6 +50,7 @@ pod 'SSH', :git => 'https://github.com/foxterm/SSH.git'
 - [Sync](https://github.com/foxterm/Sync) — 原子操作、互斥锁、等待组
 - [Proxy](https://github.com/foxterm/Proxy) — 网络代理支持
 - [Extension](https://github.com/foxterm/Extension) — Foundation 扩展
+- [libssh](https://www.libssh.org) — SSH 协议实现（上游）
 - OpenSSL-Universal
 
 ## 使用

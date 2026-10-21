@@ -50,6 +50,7 @@ pod 'SSH', :git => 'https://github.com/foxterm/SSH.git'
 - [Sync](https://github.com/foxterm/Sync) — Atomic operations, mutexes, wait groups
 - [Proxy](https://github.com/foxterm/Proxy) — Network proxy support
 - [Extension](https://github.com/foxterm/Extension) — Foundation extensions
+- [libssh](https://www.libssh.org) — SSH protocol implementation (upstream)
 - OpenSSL-Universal
 
 ## Usage
