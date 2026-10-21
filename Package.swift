@@ -16,10 +16,7 @@ let package = Package(
         .package(url: "https://github.com/foxterm/Sync.git", branch: "main"),
         .package(url: "https://github.com/foxterm/Proxy.git", branch: "main"),
         .package(url: "https://github.com/foxterm/Extension.git", branch: "main"),
-        .package(
-            url: "https://github.com/krzyzanowskim/OpenSSL.git",
-            from: "3.6.5000"
-        ),
+        .package(url: "https://github.com/OuterCorner/OpenSSL.git", .upToNextMinor(from: "4.0.3")),
     ],
     targets: [
         .binaryTarget(
