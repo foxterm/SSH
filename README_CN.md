@@ -51,7 +51,7 @@ pod 'SSH', :git => 'https://github.com/foxterm/SSH.git'
 - [Proxy](https://github.com/foxterm/Proxy) — 网络代理支持
 - [Extension](https://github.com/foxterm/Extension) — Foundation 扩展
 - [libssh](https://www.libssh.org) — SSH 协议实现（上游）
-- OpenSSL-Universal
+- [OpenSSL-Universal](https://github.com/krzyzanowskim/OpenSSL) — OpenSSL 加密工具库
 
 ## 使用
 

@@ -51,7 +51,7 @@ pod 'SSH', :git => 'https://github.com/foxterm/SSH.git'
 - [Proxy](https://github.com/foxterm/Proxy) — Network proxy support
 - [Extension](https://github.com/foxterm/Extension) — Foundation extensions
 - [libssh](https://www.libssh.org) — SSH protocol implementation (upstream)
-- OpenSSL-Universal
+- [OpenSSL-Universal](https://github.com/krzyzanowskim/OpenSSL) — OpenSSL cryptographic toolkit
 
 ## Usage
 
