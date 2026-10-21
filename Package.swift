@@ -12,11 +12,11 @@ let package = Package(
         .library(name: "SSH", targets: ["SSH"]),
     ],
     dependencies: [
-        .package(url: "https://github.com/foxterm/libetos.git", from: "1.0.9"),
-        .package(url: "https://github.com/foxterm/Sync.git", from: "1.0.9"),
-        .package(url: "https://github.com/foxterm/Proxy.git", from: "1.0.9"),
-        .package(url: "https://github.com/foxterm/Extension.git", from: "1.0.9"),
-        .package(url: "https://github.com/foxterm/OpenSSL.git", from: "1.0.9"),
+        .package(url: "https://github.com/foxterm/libetos.git", from: "1.0.1"),
+        .package(url: "https://github.com/foxterm/Sync.git", from: "1.0.1"),
+        .package(url: "https://github.com/foxterm/Proxy.git", from: "1.0.1"),
+        .package(url: "https://github.com/foxterm/Extension.git", from: "1.0.1"),
+        .package(url: "https://github.com/foxterm/OpenSSL.git", from: "1.0.1"),
     ],
     targets: [
         .binaryTarget(
