@@ -10,6 +10,7 @@ let package = Package(
     ],
     products: [
         .library(name: "SSH", targets: ["SSH"]),
+        .library(name: "OpenSSL", targets: ["OpenSSL"]),
     ],
     dependencies: [
         .package(url: "https://github.com/foxterm/libetos.git", branch: "main"),
