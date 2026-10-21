@@ -55,78 +55,80 @@ pod 'SSH', :git => 'https://github.com/foxterm/SSH.git'
 
 ## 使用
 
+> `SSH` 是 Swift actor，所有方法与可变属性均为 actor 隔离，需在异步上下文中使用 `await` 调用。
+
 ### 建立连接
 
 ```swift
 let ssh = SSH(host: "192.168.1.100", port: 22, timeout: 10)
-ssh.authUser(user: "root")
+await ssh.authUser(user: "root")
 
 // 注册代理
-ssh.registerSessionDelegate(self)
-ssh.registerShellDelegate(self)
+await ssh.registerSessionDelegate(self)
+await ssh.registerShellDelegate(self)
 
 // 1. TCP Socket 连接
-guard ssh.connect() else { return }
+guard await ssh.connect() else { return }
 
 // 或通过代理连接
-// guard ssh.connect(proxy: proxyConfig) else { return }
+// guard await ssh.connect(proxy: proxyConfig) else { return }
 
 // 或绑定指定网卡
-// guard ssh.connect(ifname: "en0") else { return }
+// guard await ssh.connect(ifname: "en0") else { return }
 
 // 2. SSH 握手
-guard ssh.handshake() else { return }
+guard await ssh.handshake() else { return }
 
 // 3. 查询可用认证方式
-let methods = ssh.authList()
+let methods = await ssh.authList()
 
 // 4. 认证
 // 密码认证
-ssh.authPassword(password: "password")
+await ssh.authPassword(password: "password")
 
 // 或公钥认证
-// ssh.authPublickey(privkey: privateKeyBase64, passphrase: "")
+// await ssh.authPublickey(privkey: privateKeyBase64, passphrase: "")
 ```
 
 ### Shell 终端
 
 ```swift
-ssh.shell(term: "xterm-256color", cols: 120, rows: 40)
-ssh.write("ls -la\n")
-ssh.resize(cols: 160, rows: 50)
+await ssh.shell(term: "xterm-256color", cols: 120, rows: 40)
+await ssh.write(data: Data("ls -la\n".utf8))
+await ssh.requestPtySize(cols: 160, rows: 50) // 防抖版本：await ssh.debouncedRequestPtySize(cols:rows:)
 ```
 
 ### SFTP 文件操作
 
 ```swift
-ssh.sftpInit()
+await ssh.sftpInit()
 
 // 列出目录
-let entries = ssh.sftpOpen(remotePath: "/home/user")
+let entries = await ssh.sftpOpendir(path: "/home/user")
 
 // 下载文件
-ssh.sftpDownload(remotePath: "/remote/file.txt", localURL: localURL, progress: { received, total in
+await ssh.sftpDownload(remotePath: "/remote/file.txt", localURL: localURL, progress: { received, total in
     return true // 返回 false 取消传输
 })
 
 // 上传文件
-ssh.sftpUpload(localURL: localURL, remotePath: "/remote/file.txt")
+await ssh.sftpUpload(localURL: localURL, remotePath: "/remote/file.txt")
 ```
 
 ### SCP 传输
 
 ```swift
-ssh.scpUpload(localURL: localURL, remotePath: "/remote/dir", recursive: true, progress: { received, total in
+await ssh.scpUpload(localURL: localURL, remotePath: "/remote/dir", recursive: true, progress: { received, total in
     return true
 })
 
-ssh.scpDownload(remotePath: "/remote/file.txt", localURL: localURL)
+await ssh.scpDownload(remotePath: "/remote/file.txt", localDirectoryURL: localURL)
 ```
 
 ### 端口转发
 
 ```swift
-ssh.sshOpenDirectTCPIP(
+await ssh.sshOpenDirectTCPIP(
     remoteHost: "db.internal",
     remotePort: 3306,
     outputStream: output,
@@ -137,17 +139,17 @@ ssh.sshOpenDirectTCPIP(
 ### 远程主机监控
 
 ```swift
-let machine = ssh.machine
+let machine = await ssh.machine
 
-let cpu = machine.cpu()
-let mem = machine.mem()
-let disk = machine.disk()
-let net = machine.net()
-let load = machine.load()
-let process = machine.process()
-let container = machine.container(type: .docker)
-let gpu = machine.gpu()
-let sensors = machine.sensors()
+let cpu = await machine.getCPUTimesStat()
+let mem = await machine.getMemoryStat()
+let disk = await machine.getDiskUsageStat()
+let net = await machine.getNetIOCountersStat()
+let load = await machine.getAvgStat()
+let process = await machine.getSystemProcess()
+let container = await machine.getDockerStat()
+let gpu = await machine.getGPUTimesStat()
+let sensors = await machine.getTemp()
 ```
 
 ### 代理回调

@@ -55,78 +55,80 @@ pod 'SSH', :git => 'https://github.com/foxterm/SSH.git'
 
 ## Usage
 
+> `SSH` is a Swift actor — all methods and mutable properties are actor-isolated, so every call requires `await` from an async context.
+
 ### Establishing a Connection
 
 ```swift
 let ssh = SSH(host: "192.168.1.100", port: 22, timeout: 10)
-ssh.authUser(user: "root")
+await ssh.authUser(user: "root")
 
 // Register delegates
-ssh.registerSessionDelegate(self)
-ssh.registerShellDelegate(self)
+await ssh.registerSessionDelegate(self)
+await ssh.registerShellDelegate(self)
 
 // 1. TCP socket connection
-guard ssh.connect() else { return }
+guard await ssh.connect() else { return }
 
 // Or connect through a proxy
-// guard ssh.connect(proxy: proxyConfig) else { return }
+// guard await ssh.connect(proxy: proxyConfig) else { return }
 
 // Or bind to a specific network interface
-// guard ssh.connect(ifname: "en0") else { return }
+// guard await ssh.connect(ifname: "en0") else { return }
 
 // 2. SSH handshake
-guard ssh.handshake() else { return }
+guard await ssh.handshake() else { return }
 
 // 3. Query available authentication methods
-let methods = ssh.authList()
+let methods = await ssh.authList()
 
 // 4. Authenticate
 // Password authentication
-ssh.authPassword(password: "password")
+await ssh.authPassword(password: "password")
 
 // Or public key authentication
-// ssh.authPublickey(privkey: privateKeyBase64, passphrase: "")
+// await ssh.authPublickey(privkey: privateKeyBase64, passphrase: "")
 ```
 
 ### Shell Terminal
 
 ```swift
-ssh.shell(term: "xterm-256color", cols: 120, rows: 40)
-ssh.write("ls -la\n")
-ssh.resize(cols: 160, rows: 50)
+await ssh.shell(term: "xterm-256color", cols: 120, rows: 40)
+await ssh.write(data: Data("ls -la\n".utf8))
+await ssh.requestPtySize(cols: 160, rows: 50) // Debounced: await ssh.debouncedRequestPtySize(cols:rows:)
 ```
 
 ### SFTP File Operations
 
 ```swift
-ssh.sftpInit()
+await ssh.sftpInit()
 
 // List directory contents
-let entries = ssh.sftpOpen(remotePath: "/home/user")
+let entries = await ssh.sftpOpendir(path: "/home/user")
 
 // Download a file
-ssh.sftpDownload(remotePath: "/remote/file.txt", localURL: localURL, progress: { received, total in
+await ssh.sftpDownload(remotePath: "/remote/file.txt", localURL: localURL, progress: { received, total in
     return true // Return false to cancel the transfer
 })
 
 // Upload a file
-ssh.sftpUpload(localURL: localURL, remotePath: "/remote/file.txt")
+await ssh.sftpUpload(localURL: localURL, remotePath: "/remote/file.txt")
 ```
 
 ### SCP Transfer
 
 ```swift
-ssh.scpUpload(localURL: localURL, remotePath: "/remote/dir", recursive: true, progress: { received, total in
+await ssh.scpUpload(localURL: localURL, remotePath: "/remote/dir", recursive: true, progress: { received, total in
     return true
 })
 
-ssh.scpDownload(remotePath: "/remote/file.txt", localURL: localURL)
+await ssh.scpDownload(remotePath: "/remote/file.txt", localDirectoryURL: localURL)
 ```
 
 ### Port Forwarding
 
 ```swift
-ssh.sshOpenDirectTCPIP(
+await ssh.sshOpenDirectTCPIP(
     remoteHost: "db.internal",
     remotePort: 3306,
     outputStream: output,
@@ -137,17 +139,17 @@ ssh.sshOpenDirectTCPIP(
 ### Remote Host Monitoring
 
 ```swift
-let machine = ssh.machine
+let machine = await ssh.machine
 
-let cpu = machine.cpu()
-let mem = machine.mem()
-let disk = machine.disk()
-let net = machine.net()
-let load = machine.load()
-let process = machine.process()
-let container = machine.container(type: .docker)
-let gpu = machine.gpu()
-let sensors = machine.sensors()
+let cpu = await machine.getCPUTimesStat()
+let mem = await machine.getMemoryStat()
+let disk = await machine.getDiskUsageStat()
+let net = await machine.getNetIOCountersStat()
+let load = await machine.getAvgStat()
+let process = await machine.getSystemProcess()
+let container = await machine.getDockerStat()
+let gpu = await machine.getGPUTimesStat()
+let sensors = await machine.getTemp()
 ```
 
 ### Delegate Callbacks
