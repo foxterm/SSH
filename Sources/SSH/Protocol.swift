@@ -5,24 +5,26 @@
 import Foundation
 import libssh
 
-/// SSH 会话事件代理，用于处理连接过程中的交互式回调
+/// SSH 会话事件代理，用于处理连接过程中的所有交互式回调和状态变化。
+///
+/// `HostInfo` 结构体应包含所有关于目标主机（地址、公钥、指纹等）的详细信息。
 public protocol SessionDelegate {
-    /// 当 SSH 连接断开时触发
+    /// 当 SSH 连接因任何原因（如断开、超时）意外断开时触发。
     func disconnect()
-
-    /// 键盘交互式认证回调，服务端发送提示时调用
+    
+    /// 键盘交互式认证回调。当服务端需要用户输入（如密码、Passphrase）时调用。
     /// - Parameters:
-    ///   - name: 认证名称
-    ///   - instruction: 认证说明信息
-    ///   - prompt: 服务端发送的提示文本
-    /// - Returns: 用户输入的应答内容
+    ///   - name: 认证机制的名称 (e.g., "password")。
+    ///   - instruction: 认证流程的说明信息。
+    ///   - prompt: 服务端发送的实际提示文本 (e.g., "Enter password: ")。
+    /// - Returns: 用户输入的应答内容字符串。
     func keyboardInteractive(name: String, instruction: String, prompt: String) -> String
-
-    /// 已知主机密钥状态校验回调
+    
+    /// 已知主机密钥状态校验回调。用于验证服务端公钥是否匹配本地缓存。
     /// - Parameters:
-    ///   - info: 当前连接的主机详细信息（含公钥指纹）
-    ///   - state: 已知主机匹配状态（未知/已变更/已找到等）
-    /// - Returns: 是否信任该主机密钥并继续连接
+    ///   - info: 当前连接的主机详细信息（包含地址、公钥及指纹）。
+    ///   - state: 当前的已知主机状态 (e.g., unknown, changed, found)。
+    /// - Returns: 如果返回 `true`，表示信任该主机密钥并允许连接继续；否则连接将被中断。
     func knownState(info: HostInfo, state: ssh_known_hosts_e) -> Bool
 }
 
