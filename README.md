@@ -6,6 +6,10 @@ A dedicated SSH core library for the FoxTerm app — a Swift wrapper built on li
 
 > This library is a dedicated core component for the [FoxTerm](https://foxterm.app/) app. Download it here: [https://foxterm.app/](https://foxterm.app/)
 
+## Build
+
+The `libssh.xcframework` is automatically built by [xcframework_build](https://github.com/foxterm/xcframework_build) CI/CD pipeline and pushed to this repository.
+
 ## Features
 
 - **SSH Sessions** — Connection, handshake, known host verification, keepalive
